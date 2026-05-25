@@ -55,7 +55,7 @@ resources:
         - task_key: ml_pipeline
           description: FinBERT + MiniLM + PCA + 3 rungs (ARIMA, XGB structured, XGB + text) + backtest
           notebook_task:
-            notebook_path: appendix/02_ml_pipeline.py
+            notebook_path: appendix/mlpipeline.py
             source: GIT     # pulled from the git_source above
           timeout_seconds: 3600   # 1 hour
           depends_on:
