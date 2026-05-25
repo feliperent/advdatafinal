@@ -1,12 +1,5 @@
 -- Databricks notebook source
 
-CREATE CATALOG IF NOT EXISTS advdatafinal;
-CREATE SCHEMA  IF NOT EXISTS advdatafinal.raw;
-CREATE SCHEMA  IF NOT EXISTS advdatafinal.datos_masked;
-CREATE SCHEMA  IF NOT EXISTS advdatafinal.silver;
-CREATE SCHEMA  IF NOT EXISTS advdatafinal.gold;
-CREATE VOLUME  IF NOT EXISTS advdatafinal.raw.landing;
-
 -- raw.prices_raw (yfinance OHLCV)
 CREATE STREAMING TABLE advdatafinal.raw.prices_raw AS
 SELECT
