@@ -31,3 +31,4 @@ dbt/dbt_packages/
 # Build artefacts
 report/figures/*.png
 !report/figures/.gitkeep
+*.egg-info/
