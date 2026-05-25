@@ -13,7 +13,7 @@
 ##   2. Volume:   bronze/ uploaded to /Volumes/advdatafinal/raw/landing/ (see docs/DATABRICKS_UPLOAD.md)
 ##   3. DLT pipeline:
 ##        Workflows -> Delta Live Tables -> Create pipeline
-##        Source notebook: /Workspace/Repos/<your-user>/advdatafinal/appendix/01_data_pipeline.sql
+##        Source notebook: /Workspace/Repos/<your-user>/advdatafinal/appendix/pipelinedatos.sql
 ##        Target catalog:   advdatafinal
 ##        Compute:          single-node, Core edition
 ##        -> Copy the resulting pipeline_id (visible in the URL bar)
