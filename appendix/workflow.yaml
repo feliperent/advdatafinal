@@ -1,10 +1,18 @@
-## Databricks Job (workflow) | chains 01_data_pipeline -> 02_ml_pipeline
+## Databricks Job (workflow) | chains 01_data_pipeline.sql -> 02_ml_pipeline.py
 ##
-## Upload both notebooks to your workspace under /Repos/<user>/advdatafinal/appendix/,
-## then create a Job from this YAML via:
-##   databricks jobs create --json-file appendix/workflow.yaml
+## NEW: notebook paths now resolve to the GitHub repo at https://github.com/feliperent/advdatafinal
+## (Databricks pulls the specified branch/tag on every Job run, so the workspace stays in sync
+## with whatever is on GitHub main).
 ##
-## Or paste the contents into the Databricks UI "Jobs & Pipelines" -> "Create Job" -> "Edit JSON".
+## To create the Job:
+##   Option A. UI:  Databricks workspace -> Workflows -> Create Job -> Edit JSON, paste this YAML
+##   Option B. CLI: databricks jobs create --json-file appendix/workflow.yaml
+##
+## Prerequisites:
+##   1. bronze/ uploaded to /Volumes/advdatafinal/raw/landing/ (see docs/DATABRICKS_UPLOAD.md)
+##   2. Repos -> Add Repo configured with https://github.com/feliperent/advdatafinal.git
+##      (only needed if you want to browse the notebooks in the UI; the Job itself uses git_source
+##      below and does not require the Repos integration to run)
 
 resources:
   jobs:
@@ -12,39 +20,50 @@ resources:
       name: advdatafinal-pipeline
       description: |
         Full medallion + ML pipeline for the IN014 final project.
-        Stage 1 (DLT data pipeline) builds raw/datos_masked/silver/gold tables.
-        Stage 2 (ML notebook) trains 3 model rungs and writes predictions + backtest.
+        Stage 1 (DLT data pipeline, pure SQL) builds raw/datos_masked/silver/gold structure.
+        Stage 2 (ML notebook, Python) trains 3 model rungs, writes predictions + backtest.
+
+      # Job-level git source. Every Job run checks out this branch from GitHub before
+      # running notebook tasks. Auditable: each Job run logs the resolved commit SHA.
+      git_source:
+        git_url: https://github.com/feliperent/advdatafinal
+        git_provider: gitHub
+        git_branch: main
+        # To pin to an immutable version (recommended for the final submission),
+        # uncomment the next line and comment out git_branch:
+        # git_tag: v1.0
 
       tasks:
-        # Stage 1: data pipeline (DLT)
+        # Stage 1: data pipeline (DLT, pure SQL)
         - task_key: data_pipeline
-          description: Medallion DLT pipeline (raw -> datos_masked -> silver -> gold)
+          description: Medallion DLT pipeline | raw -> datos_masked -> silver -> gold
           notebook_task:
-            notebook_path: /Repos/<user>/advdatafinal/appendix/01_data_pipeline
-          timeout_seconds: 1800  # 30 min
+            notebook_path: appendix/01_data_pipeline.sql
+            source: GIT
+          timeout_seconds: 1800   # 30 min
           max_retries: 0
           new_cluster:
             spark_version: 14.3.x-scala2.12
-            node_type_id: i3.xlarge   # adjust to your Free Edition allowed types
-            num_workers: 0            # single-node cluster sufficient for 25k rows
+            node_type_id: i3.xlarge     # adjust to your Free Edition allowed types
+            num_workers: 0              # single-node cluster sufficient at 25k rows
 
         # Stage 2: ML pipeline (depends_on stage 1)
         - task_key: ml_pipeline
-          description: Train Rung 0/1/2 + write predictions + backtest
+          description: Train Rung 0/1/2 + write predictions + walk-forward backtest
           notebook_task:
-            notebook_path: /Repos/<user>/advdatafinal/appendix/02_ml_pipeline
-          timeout_seconds: 3600  # 1 hour
+            notebook_path: appendix/02_ml_pipeline.py
+            source: GIT
+          timeout_seconds: 3600   # 1 hour
           depends_on:
             - task_key: data_pipeline
           new_cluster:
-            spark_version: 14.3.x-scala2.12
+            spark_version: 14.3.x-scala2.12     # use ...-ml runtime variant for built-in xgboost
             node_type_id: i3.xlarge
             num_workers: 0
-            # ML-Runtime image for built-in xgboost + mlflow
             data_security_mode: SINGLE_USER
 
+      # Optional schedule. Comment out for ad-hoc runs only.
       schedule:
-        # Optional: nightly refresh at 03:00 UTC. Comment out for ad-hoc runs.
         # quartz_cron_expression: "0 0 3 * * ?"
         # timezone_id: UTC
         pause_status: PAUSED
