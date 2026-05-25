@@ -12,13 +12,11 @@ from ingest.common import pg_conn
 
 MODEL_NAME = "yiyanghkust/finbert-tone"
 
-
 def load_model():
     tok = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
     model.eval()
     return tok, model
-
 
 @torch.no_grad()
 def score_text(text: str, tok, model) -> float:
@@ -30,7 +28,6 @@ def score_text(text: str, tok, model) -> float:
     # FinBERT-tone label order (verified empirically against m.config.id2label):
     # {0: Neutral, 1: Positive, 2: Negative}. Scalar score = P(Positive) - P(Negative) in [-1, +1].
     return float(out[1] - out[2])
-
 
 def score_table(source_view: str, target_table: str, body_col: str, id_col: str) -> None:
     tok, model = load_model()
@@ -74,7 +71,6 @@ def score_table(source_view: str, target_table: str, body_col: str, id_col: str)
         cur.execute(f"CREATE INDEX ON {target_table} (company_key, trade_date)")
     print(f"Wrote {len(df)} rows to {target_table}")
 
-
 def main() -> None:
     score_table(
         source_view="datos_masked.news_redacted",
@@ -88,7 +84,6 @@ def main() -> None:
         body_col="body_masked",
         id_col="press_id",
     )
-
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,6 @@ import pandas as pd
 
 from ingest.common import pg_conn
 
-
 def wilder_rsi(close: pd.Series, n: int = 14) -> pd.Series:
     delta = close.diff()
     up = delta.clip(lower=0)
@@ -17,7 +16,6 @@ def wilder_rsi(close: pd.Series, n: int = 14) -> pd.Series:
     avg_down = down.ewm(alpha=1.0 / n, adjust=False).mean()
     rs = avg_up / avg_down.replace(0, pd.NA)
     return 100 - 100 / (1 + rs)
-
 
 def main() -> None:
     with pg_conn() as conn:
@@ -42,7 +40,6 @@ def main() -> None:
                 (keys, vals),
             )
             print(f"Updated rsi_14 for {len(valid)} rows")
-
 
 if __name__ == "__main__":
     main()

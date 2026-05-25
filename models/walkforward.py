@@ -7,7 +7,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-
 @dataclass
 class Fold:
     fold_id: str
@@ -15,7 +14,6 @@ class Fold:
     train_end: date
     test_start: date
     test_end: date
-
 
 def folds(
     start: date = date(2021, 1, 1),
@@ -42,7 +40,6 @@ def folds(
         )
         cursor = cursor + timedelta(days=test_quarter_days)
     return out
-
 
 if __name__ == "__main__":
     for f in folds():

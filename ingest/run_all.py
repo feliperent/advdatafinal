@@ -1,7 +1,6 @@
 """Run every ingest module in sequence."""
 from ingest import fetch_prices, fetch_fundamentals, fetch_news, fetch_press, fetch_sec
 
-
 def main() -> None:
     print("=== prices ===")
     fetch_prices.main()
@@ -14,7 +13,6 @@ def main() -> None:
     print("=== sec ===")
     fetch_sec.main()
     print("=== done ===")
-
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,6 @@
--- ============================================================================
+
 -- 05_gold_facts.sql  -- Gold fact tables (5 facts: 2 intermediate + 3 main + audit)
--- ============================================================================
+
 -- Same shape as the midterm's gold.fct_complaints_daily:
 --   - bigint surrogate PK via ROW_NUMBER() OVER (...) + 1000
 --   - real FK constraints to every referenced dimension
@@ -9,9 +9,8 @@
 -- streaming-table semantics would force a full recompute (the cost lesson from
 -- the team's IN014 midterm with ROW_NUMBER in gold.fct_complaints_daily).
 
--- ============================================================================
 -- INTERMEDIATE FACT 1: sentiment per (date, company)
--- ============================================================================
+
 -- 26,080 rows = 20 stocks x 1,304 trading days. 5 sentiment features per row.
 -- finbert_*_30d uses a trailing 30-day window over silver_news/press_scored.
 -- n_8k_30d counts unique 8-K filings in the trailing 30 days from raw.sec_8k_raw.
@@ -86,9 +85,8 @@ ALTER TABLE gold.fct_sentiment_per_day ADD CONSTRAINT fk_fct_sent_company
   FOREIGN KEY (company_key) REFERENCES gold.dim_company(company_key);
 CREATE INDEX ON gold.fct_sentiment_per_day (date_key, company_key);
 
--- ============================================================================
 -- INTERMEDIATE FACT 2: PCA-reduced 10-K embedding per (company, filing_date)
--- ============================================================================
+
 -- 95 rows. Built by models/build_filing_pca.py (Python, not pure SQL).
 -- Mean-pool MiniLM embeddings per filing -> fit PCA on (95 x 384) -> top 5 components.
 -- Explained-variance ratio: [0.22, 0.14, 0.11, 0.09, 0.06] = 61.4% cumulative.
@@ -105,9 +103,8 @@ CREATE TABLE gold.fct_embedding_per_company (
 );
 CREATE INDEX ON gold.fct_embedding_per_company (company_key);
 
--- ============================================================================
 -- MAIN FACT 1: the ML feature panel
--- ============================================================================
+
 -- 25,080 rows = 20 stocks x ~1,254 trading days (after dropping rows with
 -- NULL sma_50, i.e. the first 49 days per stock). 30 numerical features + target.
 -- The model rungs (Phase 5) all train against this single table.
@@ -207,9 +204,8 @@ CREATE INDEX ON gold.fct_feature_panel_daily (company_key, trade_date);
 -- SELECT COUNT(*) FROM gold.fct_feature_panel_daily WHERE as_of_date > trade_date;
 -- Expected: 0 rows. Verified Phase 4.
 
--- ============================================================================
 -- MAIN FACT 2: model predictions (one row per (date, company, rung))
--- ============================================================================
+
 -- 19,480 rows so far (Rung 1 + Rung 2 fully done across 11 walk-forward folds;
 -- Rung 0 ARIMA in progress).
 
@@ -225,9 +221,8 @@ CREATE TABLE gold.fct_predictions (
 );
 CREATE INDEX ix_pred_dcr ON gold.fct_predictions (date_key, company_key, model_rung);
 
--- ============================================================================
 -- MAIN FACT 3: backtest P&L per (date, rung)
--- ============================================================================
+
 -- 196 rows = ~96 weekly rebalances x 2 rungs (Rung 1+2 complete; Rung 0 partial).
 -- Rebalance every 5 trading days; top-5 long, equal weight; 5 bp tx cost.
 
@@ -246,9 +241,8 @@ CREATE TABLE gold.fct_backtest_pnl_daily (
 ALTER TABLE gold.fct_backtest_pnl_daily ADD CONSTRAINT fk_pnl_date
   FOREIGN KEY (date_key) REFERENCES gold.dim_date(date_key);
 
--- ============================================================================
 -- AUDIT FACT: RAG query log (append-only)
--- ============================================================================
+
 -- Every call to rag.answer() writes one row. Lets a regulator replay any
 -- historical RAG response. SEC Rule 17a-4 spirit.
 

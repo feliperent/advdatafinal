@@ -19,7 +19,6 @@ ENDPOINT_TABLE = {
     "cash-flow-statement": "raw.cash_flow_raw",
 }
 
-
 def fetch_one(symbol: str, endpoint: str) -> list[dict]:
     """FMP /stable endpoint: symbol passed as query param, not path segment."""
     url = f"{FMP_BASE}/{endpoint}"
@@ -30,7 +29,6 @@ def fetch_one(symbol: str, endpoint: str) -> list[dict]:
     )
     r.raise_for_status()
     return r.json()
-
 
 def _sanitize(k: str) -> str:
     """Postgres column names: lowercase, replace non-alphanumerics with underscore."""
@@ -45,7 +43,6 @@ def _sanitize(k: str) -> str:
     if s and s[0].isdigit():
         s = "_" + s
     return s
-
 
 def land_one(symbol: str, endpoint: str, payload: list[dict]) -> None:
     table = ENDPOINT_TABLE[endpoint]
@@ -96,7 +93,6 @@ def land_one(symbol: str, endpoint: str, payload: list[dict]) -> None:
             )
     log_ingest(f"fmp_{endpoint}", symbol, "2021-2025", out, len(payload))
 
-
 def main() -> None:
     for symbol in tqdm(all_tickers(), desc="fundamentals"):
         for endpoint in ENDPOINT_TABLE:
@@ -106,7 +102,6 @@ def main() -> None:
             except Exception as e:
                 print(f"  {symbol} {endpoint} failed: {e}")
             sleep(0.25)
-
 
 if __name__ == "__main__":
     main()

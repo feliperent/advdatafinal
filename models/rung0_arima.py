@@ -18,7 +18,6 @@ from models.walkforward import folds
 
 warnings.filterwarnings("ignore")
 
-
 def predict_5d_direction(log_returns: pd.Series) -> tuple[float, int]:
     """Fit ARIMA on log_returns, predict next 5 daily log-returns, sum, return (prob_up, class)."""
     series = pd.Series(log_returns).dropna()
@@ -45,7 +44,6 @@ def predict_5d_direction(log_returns: pd.Series) -> tuple[float, int]:
     except Exception:
         return 0.5, 0
 
-
 def load_panel() -> pd.DataFrame:
     with pg_conn() as conn:
         return pd.read_sql(
@@ -57,7 +55,6 @@ def load_panel() -> pd.DataFrame:
             """,
             conn,
         )
-
 
 def write_predictions(rows: list[tuple]) -> None:
     if not rows:
@@ -86,7 +83,6 @@ def write_predictions(rows: list[tuple]) -> None:
             """,
             rows,
         )
-
 
 def main(max_test_per_stock_per_fold: int = 20) -> None:
     """Fit per stock per fold. To keep wall time reasonable we sample up to N test rows per (stock, fold)."""
@@ -127,7 +123,6 @@ def main(max_test_per_stock_per_fold: int = 20) -> None:
             ml.log_metric("n_test_rows", len(labels))
             print(f"  Rung 0 fold {fold.fold_id}: AUC={auc:.4f} acc={acc:.4f} n={len(labels)}")
         write_predictions(pred_rows)
-
 
 if __name__ == "__main__":
     main()

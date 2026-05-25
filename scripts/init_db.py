@@ -10,14 +10,12 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 import psycopg2
 
-
 PG = dict(
     host=os.getenv("PG_HOST", "127.0.0.1"),
     port=os.getenv("PG_PORT", "5432"),
     user=os.getenv("PG_USER", "postgres"),
     password=os.getenv("PG_PASSWORD"),
 )
-
 
 def create_db() -> None:
     conn = psycopg2.connect(database="postgres", **PG)
@@ -30,7 +28,6 @@ def create_db() -> None:
     else:
         print("Database advdatafinal already exists")
     conn.close()
-
 
 def init_schemas() -> None:
     conn = psycopg2.connect(database="advdatafinal", **PG)
@@ -60,7 +57,6 @@ def init_schemas() -> None:
     conn.close()
     print("Schemas (raw, datos_masked, silver, gold) + raw.ingest_log ready")
     print("(pgvector skipped; numpy cosine retrieval used instead)")
-
 
 if __name__ == "__main__":
     if not PG.get("password"):

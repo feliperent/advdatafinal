@@ -42,7 +42,6 @@ HP = dict(
     n_jobs=4,
 )
 
-
 def load_panel() -> pd.DataFrame:
     cols = ["trade_date", "symbol", "company_key", "y_5d_up"] + STRUCTURED_FEATURES
     with pg_conn() as conn:
@@ -55,7 +54,6 @@ def load_panel() -> pd.DataFrame:
             """,
             conn,
         )
-
 
 def train_and_score(df: pd.DataFrame, fold, rung: int, features: list[str]) -> None:
     train = df[(df["trade_date"] >= fold.train_start) & (df["trade_date"] <= fold.train_end)]
@@ -122,13 +120,11 @@ def train_and_score(df: pd.DataFrame, fold, rung: int, features: list[str]) -> N
         )
     print(f"  Rung {rung} fold {fold.fold_id}: AUC={auc:.4f} acc={acc:.4f} n={len(y_test)}")
 
-
 def main() -> None:
     df = load_panel()
     print(f"Loaded {len(df)} panel rows, {df['symbol'].nunique()} stocks, {len(STRUCTURED_FEATURES)} features")
     for fold in folds():
         train_and_score(df, fold, rung=1, features=STRUCTURED_FEATURES)
-
 
 if __name__ == "__main__":
     main()

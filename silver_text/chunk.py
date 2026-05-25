@@ -7,7 +7,6 @@ ENC = tiktoken.get_encoding("cl100k_base")
 CHUNK_TOKENS = 500
 OVERLAP_TOKENS = 50
 
-
 def chunk_text(text: str) -> list[str]:
     if not text or not text.strip():
         return []

@@ -20,7 +20,6 @@ TEXT_FEATURES = [
 ]
 FULL_FEATURES = STRUCTURED_FEATURES + TEXT_FEATURES
 
-
 def load_panel_full() -> pd.DataFrame:
     cols = ["trade_date", "symbol", "company_key", "y_5d_up"] + FULL_FEATURES
     with pg_conn() as conn:
@@ -34,13 +33,11 @@ def load_panel_full() -> pd.DataFrame:
             conn,
         )
 
-
 def main() -> None:
     df = load_panel_full()
     print(f"Loaded {len(df)} panel rows, {df['symbol'].nunique()} stocks, {len(FULL_FEATURES)} features")
     for fold in folds():
         train_and_score(df, fold, rung=2, features=FULL_FEATURES)
-
 
 if __name__ == "__main__":
     main()

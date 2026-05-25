@@ -1,6 +1,6 @@
--- ============================================================================
+
 -- 03_silver_schema.sql  -- Silver layer (6 tables, one-tier midterm pattern)
--- ============================================================================
+
 -- Naming: silver.silver_<source>_<state> (matches midterm silver.silver_quejas_cleaned).
 -- Each silver table is denormalised: every row carries both the hashed dim keys
 -- (md5 stored as text) AND the dim attribute names, so analysts can query silver

@@ -1,6 +1,6 @@
--- ============================================================================
+
 -- 02_datos_masked_schema.sql  -- PII redaction views (between raw and silver)
--- ============================================================================
+
 -- Four views, one per text-bearing raw table. Regex-masks emails + US phones.
 -- Silver text pipelines read FROM these views, NEVER from raw.* directly,
 -- so silver never sees PII in plaintext.

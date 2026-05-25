@@ -11,7 +11,6 @@ from ingest.common import pg_conn
 TOP_K = 5
 TX_COST_BPS = 5  # 5 basis points one-way
 
-
 def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     with pg_conn() as conn:
         preds = pd.read_sql(
@@ -36,9 +35,7 @@ def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     ret["fwd_ret_5d"] = (ret["close_t5"] - ret["close_px"]) / ret["close_px"]
     return preds, ret
 
-
 REBALANCE_EVERY = 5  # trading days
-
 
 def compute_pnl(preds: pd.DataFrame, ret: pd.DataFrame) -> pd.DataFrame:
     """Pick top-K every 5 trading days (no daily overlap); 5-day forward return per rebalance.
@@ -67,7 +64,6 @@ def compute_pnl(preds: pd.DataFrame, ret: pd.DataFrame) -> pd.DataFrame:
     df["cum_net_ret"] = df.groupby("model_rung")["net_ret"].cumsum()
     return df
 
-
 def benchmark_spy(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
     """Equal-weight buy-and-hold across the 20-stock universe as a proxy for the cross-section."""
     with pg_conn() as conn:
@@ -85,7 +81,6 @@ def benchmark_spy(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
     bench = bench[(bench["trade_date"] >= start) & (bench["trade_date"] <= end)].sort_values("trade_date")
     bench["benchmark_cum"] = bench["eq_wt_ret"].cumsum()
     return bench[["trade_date", "benchmark_cum"]]
-
 
 def write_to_db(pnl: pd.DataFrame, bench: pd.DataFrame) -> None:
     pnl = pnl.merge(bench, on="trade_date", how="left")
@@ -135,7 +130,6 @@ def write_to_db(pnl: pd.DataFrame, bench: pd.DataFrame) -> None:
         )
     print(f"Wrote {len(rows)} rows to gold.fct_backtest_pnl_daily")
 
-
 def main() -> None:
     preds, ret = load_inputs()
     print(f"Loaded {len(preds)} predictions, {len(ret)} price rows")
@@ -156,7 +150,6 @@ def main() -> None:
         sharpe=("net_ret", lambda x: (float(x.mean()) / max(float(x.std()), 1e-9)) * (PERIODS_PER_YEAR ** 0.5)),
     )
     print(summary)
-
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,6 @@
--- ============================================================================
+
 -- 00_init.sql  -- Database bootstrap
--- ============================================================================
+
 -- Idempotent: safe to re-run. Same shape as the IN014 midterm's first cells.
 
 CREATE DATABASE advdatafinal;

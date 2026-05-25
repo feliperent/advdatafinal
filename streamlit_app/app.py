@@ -21,7 +21,6 @@ from rag.answer import answer  # noqa: E402
 
 st.set_page_config(page_title="advdatafinal | IN014", layout="wide")
 
-
 # ----------------------------- Data loaders (cached) ---------------------------
 
 @st.cache_data(ttl=60)
@@ -30,7 +29,6 @@ def load_companies() -> pd.DataFrame:
         return pd.read_sql(
             "SELECT symbol, name, sector_name FROM gold.dim_company ORDER BY symbol", conn
         )
-
 
 @st.cache_data(ttl=60)
 def load_dates_for(symbol: str) -> list[str]:
@@ -48,7 +46,6 @@ def load_dates_for(symbol: str) -> list[str]:
         )
     return [d.isoformat() for d in df["full_date"]]
 
-
 @st.cache_data(ttl=60)
 def load_predictions(symbol: str, date_iso: str) -> pd.DataFrame:
     with pg_conn() as conn:
@@ -64,7 +61,6 @@ def load_predictions(symbol: str, date_iso: str) -> pd.DataFrame:
             conn, params=(symbol, date_iso),
         )
 
-
 @st.cache_data(ttl=60)
 def load_pnl() -> pd.DataFrame:
     with pg_conn() as conn:
@@ -77,7 +73,6 @@ def load_pnl() -> pd.DataFrame:
             """,
             conn,
         )
-
 
 # ----------------------------- UI ---------------------------------------------
 
@@ -101,7 +96,7 @@ with col_h2:
     date_iso = st.selectbox("Date", dates, index=0)
 
 stock_row = companies[companies["symbol"] == symbol].iloc[0]
-st.markdown(f"**{symbol}** — {stock_row['name']} *({stock_row['sector_name']})*")
+st.markdown(f"**{symbol}**  -  {stock_row['name']} *({stock_row['sector_name']})*")
 
 # Block 2: predictions side by side
 preds = load_predictions(symbol, date_iso)
@@ -115,7 +110,7 @@ else:
         with cols[r]:
             sub = preds[preds["model_rung"] == r]
             if sub.empty:
-                st.metric(rung_labels.get(r, f"Rung {r}"), "—", "no prediction")
+                st.metric(rung_labels.get(r, f"Rung {r}"), " - ", "no prediction")
                 continue
             p = float(sub.iloc[0]["prob_up"])
             cls = "UP" if int(sub.iloc[0]["predicted_class"]) == 1 else "DOWN"

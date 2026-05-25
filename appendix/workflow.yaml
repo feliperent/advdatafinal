@@ -1,76 +1,40 @@
-## Databricks Job (workflow)
-## Chains: DLT pipeline (pipelinedatos.sql)  ->  notebook task (02_ml_pipeline.py)
-##
-## IMPORTANT: pipelinedatos.sql uses DLT syntax (CREATE STREAMING TABLE,
-## APPLY CHANGES INTO, CREATE MATERIALIZED VIEW). These run in a DLT PIPELINE,
-## not in a regular Job notebook_task. So the Job below has two task types:
-##
-##   - data_pipeline   ->  pipeline_task   (triggers an existing DLT pipeline by ID)
-##   - ml_pipeline     ->  notebook_task   (runs 02_ml_pipeline.py as a normal notebook)
-##
-## Pre-requisites (one-time, UI):
-##   1. Repos:    /Workspace/Repos/<your-user>/advdatafinal pointing at the GitHub repo
-##   2. Volume:   bronze/ uploaded to /Volumes/advdatafinal/raw/landing/ (see docs/DATABRICKS_UPLOAD.md)
-##   3. DLT pipeline:
-##        Workflows -> Delta Live Tables -> Create pipeline
-##        Source notebook: /Workspace/Repos/<your-user>/advdatafinal/appendix/pipelinedatos.sql
-##        Target catalog:   advdatafinal
-##        Compute:          single-node, Core edition
-##        -> Copy the resulting pipeline_id (visible in the URL bar)
-##        -> Paste it as <PASTE_DLT_PIPELINE_ID_HERE> below.
-##
-## Once the pipeline_id is in, create the Job:
-##   UI:  Workflows -> Create Job -> Edit JSON -> paste this YAML
-##   CLI: databricks jobs create --json-file appendix/workflow.yaml
+# Databricks Job chaining the DLT pipeline (pipelinedatos.sql) and the ML notebook (mlpipeline.py).
+# Create the DLT pipeline first (workflow UI or CLI), paste its id below, then submit this YAML.
 
 resources:
   jobs:
     advdatafinal_pipeline:
       name: advdatafinal-pipeline
-      description: |
-        Full medallion + ML pipeline for the IN014 final project.
-        Task 1 triggers the DLT data pipeline (raw -> datos_masked -> silver -> gold dims).
-        Task 2 runs the ML notebook (FinBERT + MiniLM + PCA + 3 model rungs + backtest).
+      description: Medallion DLT + ML notebook (FinBERT, MiniLM, PCA, 3 rungs, backtest).
 
-      # Optional git source for tasks that use SOURCE=GIT. The DLT pipeline itself is
-      # already configured to read from a notebook path; this git_source is here for the
-      # notebook task in case you'd rather pin the ML notebook to a commit SHA via git_tag.
       git_source:
         git_url: https://github.com/feliperent/advdatafinal
         git_provider: gitHub
         git_branch: main
-        # For final submission, replace git_branch with an immutable git_tag:
-        # git_tag: v1.0
 
       tasks:
-        # Task 1: DLT pipeline (runs the pipelinedatos.sql DLT notebook)
         - task_key: data_pipeline
-          description: Medallion DLT pipeline | raw -> datos_masked -> silver -> gold dims
+          description: DLT pipeline | raw / datos_masked / silver / gold.dim_*
           pipeline_task:
             pipeline_id: <PASTE_DLT_PIPELINE_ID_HERE>
-            full_refresh: false   # true on first run; false on subsequent runs to pick up only new data
-          timeout_seconds: 1800   # 30 min
+            full_refresh: false
+          timeout_seconds: 1800
 
-        # Task 2: ML notebook (depends on data_pipeline; pulled from GitHub via git_source)
         - task_key: ml_pipeline
-          description: FinBERT + MiniLM + PCA + 3 rungs (ARIMA, XGB structured, XGB + text) + backtest
+          description: FinBERT + MiniLM + PCA + 3 rungs + backtest
           notebook_task:
             notebook_path: appendix/mlpipeline.py
-            source: GIT     # pulled from the git_source above
-          timeout_seconds: 3600   # 1 hour
+            source: GIT
+          timeout_seconds: 3600
           depends_on:
             - task_key: data_pipeline
           new_cluster:
-            # ML runtime image so xgboost, mlflow, sklearn are pre-installed
             spark_version: 14.3.x-cpu-ml-scala2.12
-            node_type_id: i3.xlarge   # adjust to your Free Edition allowed types
-            num_workers: 0            # single-node sufficient at 25k rows
+            node_type_id: i3.xlarge
+            num_workers: 0
             data_security_mode: SINGLE_USER
 
-      # Optional schedule. Comment out for ad-hoc runs.
       schedule:
-        # quartz_cron_expression: "0 0 3 * * ?"
-        # timezone_id: UTC
         pause_status: PAUSED
 
       email_notifications:

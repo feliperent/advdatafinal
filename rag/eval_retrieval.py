@@ -12,7 +12,6 @@ from rag.retrieve import retrieve
 EVAL_FILE = Path(__file__).parent / "eval_set.jsonl"
 TOP_K = 5
 
-
 def main() -> None:
     queries = [json.loads(line) for line in EVAL_FILE.read_text().splitlines() if line.strip()]
     print(f"Evaluating retrieval on {len(queries)} queries (top_k={TOP_K})")
@@ -50,7 +49,6 @@ def main() -> None:
     print("-" * 88)
     for sym, q, rr, p, n in detail:
         print(f"{sym:6}  {q:52}  {rr:>6.3f}  {p:>6.3f}  {n:>5}")
-
 
 if __name__ == "__main__":
     main()

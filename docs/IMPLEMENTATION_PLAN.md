@@ -603,7 +603,6 @@ load_dotenv()
 BRONZE_ROOT = Path(__file__).parent.parent / "bronze"
 BRONZE_ROOT.mkdir(exist_ok=True)
 
-
 def pg_conn(dbname: str = "advdatafinal") -> psycopg2.extensions.connection:
     return psycopg2.connect(
         host=os.getenv("PG_HOST"),
@@ -613,14 +612,12 @@ def pg_conn(dbname: str = "advdatafinal") -> psycopg2.extensions.connection:
         database=dbname,
     )
 
-
 def sha256_of_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
-
 
 def log_ingest(
     source: str,
@@ -646,14 +643,12 @@ def log_ingest(
             (source, symbol, window_key, str(file_path), row_count, sha),
         )
 
-
 def load_universe() -> dict[str, list[str]]:
     """Return {sector_name: [ticker, ...]} from config/universe.yaml."""
     import yaml
 
     cfg = yaml.safe_load(open(Path(__file__).parent.parent / "config" / "universe.yaml"))
     return cfg["universe"]["tickers"]
-
 
 def all_tickers() -> list[str]:
     return [t for tickers in load_universe().values() for t in tickers]
@@ -669,14 +664,11 @@ Create `tests/test_ingest_common.py`:
 from ingest.common import all_tickers, load_universe, sha256_of_file
 from pathlib import Path
 
-
 def test_universe_has_20_tickers():
     assert len(all_tickers()) == 20
 
-
 def test_universe_has_5_sectors():
     assert len(load_universe()) == 5
-
 
 def test_sha256_deterministic(tmp_path: Path):
     f = tmp_path / "x.txt"
@@ -718,7 +710,6 @@ from tqdm import tqdm
 
 from ingest.common import BRONZE_ROOT, all_tickers, log_ingest, pg_conn
 
-
 def fetch_one(symbol: str, start: str = "2021-01-01", end: str = "2026-01-01") -> pd.DataFrame:
     df = yf.download(symbol, start=start, end=end, interval="1d", progress=False, auto_adjust=False)
     if isinstance(df.columns, pd.MultiIndex):
@@ -728,13 +719,11 @@ def fetch_one(symbol: str, start: str = "2021-01-01", end: str = "2026-01-01") -
     df["symbol"] = symbol
     return df
 
-
 def land_to_bronze(symbol: str, df: pd.DataFrame) -> None:
     out = BRONZE_ROOT / "prices" / f"{symbol}.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
     log_ingest("yfinance_prices", symbol, "2021-2025", out, len(df))
-
 
 def land_to_raw(symbol: str, df: pd.DataFrame) -> None:
     with pg_conn() as conn, conn.cursor() as cur:
@@ -783,13 +772,11 @@ def land_to_raw(symbol: str, df: pd.DataFrame) -> None:
             rows,
         )
 
-
 def main() -> None:
     for symbol in tqdm(all_tickers(), desc="prices"):
         df = fetch_one(symbol)
         land_to_bronze(symbol, df)
         land_to_raw(symbol, df)
-
 
 if __name__ == "__main__":
     main()
@@ -855,13 +842,11 @@ ENDPOINT_TABLE = {
     "cash-flow-statement": "raw.cash_flow_raw",
 }
 
-
 def fetch_one(symbol: str, endpoint: str) -> list[dict]:
     url = f"{FMP_BASE}/{endpoint}/{symbol}"
     r = requests.get(url, params={"apikey": FMP_KEY, "period": "quarter", "limit": 20}, timeout=30)
     r.raise_for_status()
     return r.json()
-
 
 def land_one(symbol: str, endpoint: str, payload: list[dict]) -> None:
     table = ENDPOINT_TABLE[endpoint]
@@ -900,14 +885,12 @@ def land_one(symbol: str, endpoint: str, payload: list[dict]) -> None:
             )
     log_ingest(f"fmp_{endpoint}", symbol, "2021-2025", out, len(payload))
 
-
 def main() -> None:
     for symbol in tqdm(all_tickers(), desc="fundamentals"):
         for endpoint in ENDPOINT_TABLE:
             payload = fetch_one(symbol, endpoint)
             land_one(symbol, endpoint, payload)
             sleep(0.25)  # gentle on FMP rate limits
-
 
 if __name__ == "__main__":
     main()
@@ -962,13 +945,11 @@ from ingest.common import BRONZE_ROOT, all_tickers, log_ingest, pg_conn
 FMP_BASE = "https://financialmodelingprep.com/api/v3"
 FMP_KEY = os.getenv("FMP_API_KEY")
 
-
 def fetch_one(symbol: str, limit: int = 200) -> list[dict]:
     url = f"{FMP_BASE}/stock_news"
     r = requests.get(url, params={"tickers": symbol, "limit": limit, "apikey": FMP_KEY}, timeout=30)
     r.raise_for_status()
     return r.json()
-
 
 def land(symbol: str, articles: list[dict]) -> None:
     out = BRONZE_ROOT / "news" / f"{symbol}.json"
@@ -1014,13 +995,11 @@ def land(symbol: str, articles: list[dict]) -> None:
             )
     log_ingest("fmp_news", symbol, "last_90d", out, len(articles))
 
-
 def main() -> None:
     for symbol in tqdm(all_tickers(), desc="news"):
         articles = fetch_one(symbol)
         land(symbol, articles)
         sleep(0.25)
-
 
 if __name__ == "__main__":
     main()
@@ -1088,11 +1067,9 @@ from tqdm import tqdm
 
 from ingest.common import BRONZE_ROOT, all_tickers, log_ingest, pg_conn
 
-
 def init_sec() -> None:
     ua = os.getenv("SEC_USER_AGENT", "Felipe Renteria <felipe@bookline.ai>")
     set_identity(ua)
-
 
 def fetch_10k_item1a(symbol: str, years: int = 5) -> list[dict]:
     c = Company(symbol)
@@ -1114,7 +1091,6 @@ def fetch_10k_item1a(symbol: str, years: int = 5) -> list[dict]:
             print(f"  10-K parse failed for {symbol} ({f.accession_no}): {e}")
     return out
 
-
 def fetch_8k(symbol: str, months: int = 12) -> list[dict]:
     from datetime import date, timedelta
     cutoff = date.today() - timedelta(days=30 * months)
@@ -1135,7 +1111,6 @@ def fetch_8k(symbol: str, months: int = 12) -> list[dict]:
         except Exception as e:
             print(f"  8-K parse failed for {symbol} ({f.accession_no}): {e}")
     return out
-
 
 def land_10k(symbol: str, payloads: list[dict]) -> None:
     with pg_conn() as conn, conn.cursor() as cur:
@@ -1165,7 +1140,6 @@ def land_10k(symbol: str, payloads: list[dict]) -> None:
             )
     log_ingest("sec_10k", symbol, "last_5y", BRONZE_ROOT / "filings" / "10K" / symbol, len(payloads))
 
-
 def land_8k(symbol: str, payloads: list[dict]) -> None:
     with pg_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -1193,7 +1167,6 @@ def land_8k(symbol: str, payloads: list[dict]) -> None:
             )
     log_ingest("sec_8k", symbol, "last_12m", BRONZE_ROOT / "filings" / "8K" / symbol, len(payloads))
 
-
 def main() -> None:
     init_sec()
     for symbol in tqdm(all_tickers(), desc="sec"):
@@ -1206,7 +1179,6 @@ def main() -> None:
         except Exception as e:
             print(f"8-K failed for {symbol}: {e}")
         sleep(0.5)
-
 
 if __name__ == "__main__":
     main()
@@ -1248,7 +1220,6 @@ git commit -m "feat(ingest): SEC EDGAR 10-K Item 1A + 8-K via edgartools"
 """Run every ingest module in sequence."""
 from ingest import fetch_prices, fetch_fundamentals, fetch_news, fetch_press, fetch_sec
 
-
 def main() -> None:
     print("=== prices ===")
     fetch_prices.main()
@@ -1261,7 +1232,6 @@ def main() -> None:
     print("=== sec ===")
     fetch_sec.main()
     print("=== done ===")
-
 
 if __name__ == "__main__":
     main()
@@ -1294,7 +1264,7 @@ git commit -m "feat(ingest): orchestrator for all six raw sources"
 
 ---
 
-## Phase 2: Silver Layer — Structured Data (Day 3)
+## Phase 2: Silver Layer  -  Structured Data (Day 3)
 
 The goal of Phase 2 is to produce two silver tables (`silver.silver_prices_cleaned`, `silver.silver_fundamentals_cleaned`) via dbt-postgres models. These cover the structured side of the pipeline.
 
@@ -1535,7 +1505,6 @@ import pandas as pd
 
 from ingest.common import pg_conn
 
-
 def wilder_rsi(close: pd.Series, n: int = 14) -> pd.Series:
     delta = close.diff()
     up = delta.clip(lower=0)
@@ -1544,7 +1513,6 @@ def wilder_rsi(close: pd.Series, n: int = 14) -> pd.Series:
     avg_down = down.ewm(alpha=1 / n, adjust=False).mean()
     rs = avg_up / avg_down
     return 100 - 100 / (1 + rs)
-
 
 def main():
     with pg_conn() as conn:
@@ -1562,7 +1530,6 @@ def main():
                     (float(row["rsi_14"]), row["price_key"]),
                 )
         print(f"Updated rsi_14 for {df['rsi_14'].notna().sum()} rows")
-
 
 if __name__ == "__main__":
     main()
@@ -1710,7 +1677,7 @@ git commit -m "feat(silver): silver_fundamentals_cleaned with TTM rollups"
 
 ---
 
-## Phase 3: Silver Layer — Text and Embeddings (Day 4)
+## Phase 3: Silver Layer  -  Text and Embeddings (Day 4)
 
 Goal: produce the four text-source silver tables (`silver_news_scored`, `silver_press_scored`, `silver_filings_10k_chunked`, `silver_filings_8k_chunked`) plus the four `datos_masked` views.
 
@@ -1837,13 +1804,11 @@ from ingest.common import pg_conn
 
 MODEL_NAME = "yiyanghkust/finbert-tone"
 
-
 def load_model():
     tok = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
     model.eval()
     return tok, model
-
 
 def score_text(text: str, tok, model) -> float:
     """Return positive_prob - negative_prob as a scalar score in [-1, +1]."""
@@ -1854,7 +1819,6 @@ def score_text(text: str, tok, model) -> float:
         out = model(**enc).logits.softmax(dim=-1).squeeze().tolist()
     # FinBERT tone label order: ['positive', 'negative', 'neutral']
     return float(out[0] - out[1])
-
 
 def score_table(source_view: str, target_table: str, body_col: str, id_col: str) -> None:
     tok, model = load_model()
@@ -1897,7 +1861,6 @@ def score_table(source_view: str, target_table: str, body_col: str, id_col: str)
         cur.execute(f"UPDATE {target_table} SET company_key = md5(lower(trim(symbol)))")
     print(f"Wrote {len(df)} rows to {target_table}")
 
-
 def main() -> None:
     score_table(
         source_view="datos_masked.news_redacted",
@@ -1911,7 +1874,6 @@ def main() -> None:
         body_col="body_masked",
         id_col="press_id",
     )
-
 
 if __name__ == "__main__":
     main()
@@ -1963,7 +1925,6 @@ ENC = tiktoken.get_encoding("cl100k_base")
 CHUNK_TOKENS = 500
 OVERLAP_TOKENS = 50
 
-
 def chunk_text(text: str) -> list[str]:
     if not text:
         return []
@@ -1992,13 +1953,11 @@ from sentence_transformers import SentenceTransformer
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 _model: SentenceTransformer | None = None
 
-
 def get_model() -> SentenceTransformer:
     global _model
     if _model is None:
         _model = SentenceTransformer(MODEL_NAME)
     return _model
-
 
 def embed(texts: list[str]) -> np.ndarray:
     return get_model().encode(texts, normalize_embeddings=True, show_progress_bar=True)
@@ -2018,7 +1977,6 @@ from tqdm import tqdm
 from ingest.common import pg_conn
 from silver_text.chunk import chunk_text
 from silver_text.embed import embed
-
 
 def build_for(source_view: str, target_table: str, source_type_code: str) -> None:
     with pg_conn() as conn:
@@ -2106,7 +2064,6 @@ def build_for(source_view: str, target_table: str, source_type_code: str) -> Non
 
     print(f"Wrote {len(chunk_df)} chunks + embeddings for {target_table}")
 
-
 def main() -> None:
     build_for(
         source_view="datos_masked.filings_10k_redacted",
@@ -2131,7 +2088,6 @@ def main() -> None:
             """
         )
     print("Built HNSW index on rag_chunks_pgvector")
-
 
 if __name__ == "__main__":
     main()
@@ -2179,7 +2135,7 @@ git commit -m "feat(silver): chunker + MiniLM embedder + pgvector HNSW index"
 
 ---
 
-## Phase 4: Gold Layer — Dimensions and Intermediate Facts (Day 5)
+## Phase 4: Gold Layer  -  Dimensions and Intermediate Facts (Day 5)
 
 ### Task 4.1: All 5 dimensions
 
@@ -2459,7 +2415,6 @@ from sklearn.decomposition import PCA
 
 from ingest.common import pg_conn
 
-
 def main() -> None:
     with pg_conn() as conn:
         # Pull all 10-K chunks + embeddings (use the latest filing per company)
@@ -2530,7 +2485,6 @@ def main() -> None:
             out_rows,
         )
     print(f"Wrote {len(out_rows)} rows to gold.fct_embedding_per_company")
-
 
 if __name__ == "__main__":
     main()
@@ -2699,7 +2653,6 @@ import mlflow
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "./mlruns"))
 mlflow.set_experiment("advdatafinal")
 
-
 @contextmanager
 def run(rung: int, fold_id: str, model_family: str, n_features: int):
     with mlflow.start_run(run_name=f"rung{rung}_{fold_id}_{model_family}"):
@@ -2721,7 +2674,6 @@ from __future__ import annotations
 from datetime import date, timedelta
 from dataclasses import dataclass
 
-
 @dataclass
 class Fold:
     fold_id: str
@@ -2729,7 +2681,6 @@ class Fold:
     train_end: date
     test_start: date
     test_end: date
-
 
 def folds(
     start: date = date(2021, 1, 1),
@@ -2757,7 +2708,6 @@ def folds(
         )
         cursor = cursor + test_len
     return out
-
 
 if __name__ == "__main__":
     for f in folds():
@@ -2794,7 +2744,6 @@ git commit -m "feat(models): walk-forward fold generator + MLflow helpers"
 import pandas as pd
 import numpy as np
 from models.rung0_arima import predict_5d_direction
-
 
 def test_arima_returns_prob_and_class():
     # Synthetic log-return series that trends upward
@@ -2833,7 +2782,6 @@ from ingest.common import pg_conn
 from models.mlflow_helpers import run as mlflow_run
 from models.walkforward import folds
 
-
 def predict_5d_direction(log_returns: pd.Series) -> tuple[float, int]:
     """Fit ARIMA on log_returns, predict next 5 days cumulative return, return (prob_up, predicted_class)."""
     series = log_returns.dropna()
@@ -2847,7 +2795,6 @@ def predict_5d_direction(log_returns: pd.Series) -> tuple[float, int]:
     z = cum / max(sigma_5d, 1e-6)
     prob_up = 1.0 / (1.0 + math.exp(-z))
     return prob_up, int(prob_up > 0.5)
-
 
 def main() -> None:
     with pg_conn() as conn:
@@ -2878,7 +2825,6 @@ def main() -> None:
             ml.log_metric("accuracy", acc)
             ml.log_metric("n_test_rows", len(labels))
             print(f"ARIMA fold {fold.fold_id}: AUC={auc:.4f} acc={acc:.4f} n={len(labels)}")
-
 
 if __name__ == "__main__":
     main()
@@ -2953,14 +2899,12 @@ HP = dict(
     eval_metric="auc",
 )
 
-
 def load_panel() -> pd.DataFrame:
     with pg_conn() as conn:
         return pd.read_sql(
             f"SELECT trade_date::date, symbol, company_key, y_5d_up, {', '.join(STRUCTURED_FEATURES)}, as_of_date FROM gold.fct_feature_panel_daily WHERE y_5d_up IS NOT NULL",
             conn,
         )
-
 
 def train_one_fold(df: pd.DataFrame, fold) -> dict:
     train = df[(df["trade_date"] >= fold.train_start) & (df["trade_date"] <= fold.train_end)]
@@ -2977,7 +2921,6 @@ def train_one_fold(df: pd.DataFrame, fold) -> dict:
     shap_values = explainer.shap_values(X_test.head(200))
 
     return dict(clf=clf, probs=probs, y_test=y_test, auc=auc, acc=acc, shap_values=shap_values, X_test=X_test, test_idx=test.index)
-
 
 def main() -> None:
     df = load_panel()
@@ -3010,7 +2953,6 @@ def main() -> None:
                         (str(row["trade_date"]), row["company_key"], fold.fold_id, float(out["probs"][i]), int(out["probs"][i] > 0.5)),
                     )
         print(f"Rung 1 fold {fold.fold_id}: AUC={out['auc']:.4f} acc={out['acc']:.4f}")
-
 
 if __name__ == "__main__":
     main()
@@ -3071,14 +3013,12 @@ FULL_FEATURES = [
     "pe_ttm", "pb", "fcf_yield", "ev_ebitda",
 ] + TEXT_FEATURES
 
-
 def load_panel() -> pd.DataFrame:
     with pg_conn() as conn:
         return pd.read_sql(
             f"SELECT trade_date::date, symbol, company_key, y_5d_up, {', '.join(FULL_FEATURES)}, as_of_date FROM gold.fct_feature_panel_daily WHERE y_5d_up IS NOT NULL",
             conn,
         )
-
 
 def main() -> None:
     df = load_panel()
@@ -3106,7 +3046,6 @@ def main() -> None:
                         (str(row["trade_date"]), row["company_key"], fold.fold_id, float(probs[i]), int(probs[i] > 0.5)),
                     )
         print(f"Rung 2 fold {fold.fold_id}: AUC={auc:.4f} acc={acc:.4f}")
-
 
 if __name__ == "__main__":
     main()
@@ -3167,7 +3106,6 @@ from ingest.common import pg_conn
 TX_COST_BPS = 5
 TOP_K = 5
 HOLD_DAYS = 5
-
 
 def main() -> None:
     with pg_conn() as conn:
@@ -3230,7 +3168,6 @@ def main() -> None:
             )
     print(f"Wrote {len(df)} rows to gold.fct_backtest_pnl_daily")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -3253,7 +3190,6 @@ import plotly.graph_objects as go
 
 from ingest.common import pg_conn
 
-
 def main() -> None:
     with pg_conn() as conn:
         df = pd.read_sql("SELECT trade_date, model_rung, cum_net_ret FROM gold.fct_backtest_pnl_daily ORDER BY trade_date", conn)
@@ -3265,7 +3201,6 @@ def main() -> None:
     os.makedirs("report/figures", exist_ok=True)
     fig.write_image("report/figures/backtest_pnl.png", width=900, height=500)
     print("Wrote report/figures/backtest_pnl.png")
-
 
 if __name__ == "__main__":
     main()
@@ -3307,7 +3242,6 @@ import pandas as pd
 from ingest.common import pg_conn
 from silver_text.embed import embed
 
-
 def retrieve(question: str, symbol: str, as_of_date: str, top_k: int = 8) -> pd.DataFrame:
     q_emb = embed([question])[0].tolist()
     with pg_conn() as conn:
@@ -3331,7 +3265,6 @@ def retrieve(question: str, symbol: str, as_of_date: str, top_k: int = 8) -> pd.
             conn,
             params=(q_emb, symbol, as_of_date, top_k),
         )
-
 
 if __name__ == "__main__":
     import sys
@@ -3374,7 +3307,6 @@ Instructions:
 4. If the chunks contradict the prediction, say so honestly.
 """
 
-
 def answer(question: str, symbol: str, as_of_date: str, prob_up: float, predicted_class: str) -> tuple[str, list[str]]:
     chunks = retrieve(question, symbol, as_of_date, top_k=8)
     if chunks.empty:
@@ -3400,7 +3332,6 @@ def answer(question: str, symbol: str, as_of_date: str, prob_up: float, predicte
         )
 
     return paragraph, list(chunks["chunk_key"])
-
 
 if __name__ == "__main__":
     para, keys = answer("Why is AAPL predicted up?", "AAPL", "2025-12-01", 0.68, "UP")
@@ -3460,7 +3391,6 @@ from rag.retrieve import retrieve
 
 EVAL_FILE = Path(__file__).parent / "eval_set.jsonl"
 
-
 def main() -> None:
     queries = [json.loads(line) for line in EVAL_FILE.read_text().splitlines() if line.strip()]
     mrr_total = 0.0
@@ -3475,7 +3405,6 @@ def main() -> None:
     mrr5 = mrr_total / n
     p5 = p5_total / n
     print(f"MRR@5 = {mrr5:.3f}  P@5 = {p5:.3f}  over {n} queries")
-
 
 if __name__ == "__main__":
     main()
@@ -3626,7 +3555,6 @@ client = TradingClient(
     os.getenv("ALPACA_KEY"), os.getenv("ALPACA_SECRET"), paper=True
 )
 
-
 def latest_picks(top_k: int = 5) -> list[str]:
     with pg_conn() as conn, conn.cursor() as cur:
         cur.execute("""
@@ -3640,7 +3568,6 @@ def latest_picks(top_k: int = 5) -> list[str]:
         """, (top_k,))
         return [row[0] for row in cur.fetchall()]
 
-
 def main() -> None:
     picks = latest_picks()
     print(f"Picks: {picks}")
@@ -3653,7 +3580,6 @@ def main() -> None:
             print(f"{symbol} failed: {e}")
     acct = client.get_account()
     print(f"Account equity: ${float(acct.equity):,.2f}")
-
 
 if __name__ == "__main__":
     main()
@@ -3872,7 +3798,7 @@ pandoc advdatafinal_report.md -o advdatafinal_report.pdf \
 
 Expected: ~20-30 page PDF.
 
-- [ ] **Step 2: Manual readthrough — check every number in prose against the underlying SQL or notebook cell**
+- [ ] **Step 2: Manual readthrough  -  check every number in prose against the underlying SQL or notebook cell**
 
 Open the PDF. For each numeric claim in §5 (AUC values, P&L percentages, MRR@5), open Postgres and re-run the underlying query. Note any mismatches and fix.
 
@@ -3919,8 +3845,8 @@ After writing the plan, applied the four-point check from the writing-plans skil
 
 Plan complete and saved to `docs/superpowers/plans/2026-05-24-advdatafinal-implementation.md`. Two execution options:
 
-**1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration. Good for the long ingest + dbt + model phases where I can keep moving while you spot-check.
+**1. Subagent-Driven (recommended)**  -  I dispatch a fresh subagent per task, review between tasks, fast iteration. Good for the long ingest + dbt + model phases where I can keep moving while you spot-check.
 
-**2. Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints. Good if you want every step visible in this transcript.
+**2. Inline Execution**  -  Execute tasks in this session using executing-plans, batch execution with checkpoints. Good if you want every step visible in this transcript.
 
 Which approach?

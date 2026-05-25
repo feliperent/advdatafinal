@@ -15,12 +15,10 @@ from ingest.common import pg_conn
 
 EMBED_DIM = 384
 
-
 def _from_bytes(b: bytes) -> np.ndarray:
     if b is None:
         return np.zeros(EMBED_DIM, dtype=np.float32)
     return np.array(struct.unpack(f"<{EMBED_DIM}f", b), dtype=np.float32)
-
 
 def main() -> None:
     with pg_conn() as conn:
@@ -98,7 +96,6 @@ def main() -> None:
         )
         cur.execute("CREATE INDEX ON gold.fct_embedding_per_company (company_key)")
     print(f"Wrote {len(rows)} rows to gold.fct_embedding_per_company")
-
 
 if __name__ == "__main__":
     main()

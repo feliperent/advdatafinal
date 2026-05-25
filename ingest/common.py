@@ -15,7 +15,6 @@ load_dotenv(REPO_ROOT / ".env")
 BRONZE_ROOT = REPO_ROOT / "bronze"
 BRONZE_ROOT.mkdir(exist_ok=True)
 
-
 def pg_conn(dbname: str = "advdatafinal") -> psycopg2.extensions.connection:
     return psycopg2.connect(
         host=os.getenv("PG_HOST", "127.0.0.1"),
@@ -24,7 +23,6 @@ def pg_conn(dbname: str = "advdatafinal") -> psycopg2.extensions.connection:
         password=os.getenv("PG_PASSWORD"),
         database=dbname,
     )
-
 
 def sha256_of_file(path: Path) -> str:
     """Hash a single file. If `path` is a directory, hash a manifest of (filename, size) tuples."""
@@ -39,7 +37,6 @@ def sha256_of_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
-
 
 def log_ingest(
     source: str,
@@ -65,16 +62,13 @@ def log_ingest(
             (source, symbol, window_key, str(file_path), row_count, sha),
         )
 
-
 def load_universe() -> dict[str, list[str]]:
     """Return {sector_name: [ticker, ...]} from config/universe.yaml."""
     cfg = yaml.safe_load(open(REPO_ROOT / "config" / "universe.yaml"))
     return cfg["universe"]["tickers"]
 
-
 def all_tickers() -> list[str]:
     return [t for tickers in load_universe().values() for t in tickers]
-
 
 def sector_for(symbol: str) -> str:
     for sector, tickers in load_universe().items():

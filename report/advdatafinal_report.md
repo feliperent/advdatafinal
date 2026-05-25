@@ -384,8 +384,6 @@ Rung 0 ARIMA mean AUC across the 11 folds: **~0.51** (per-fold values logged to 
 
 Both. Rung 2 IS a single model fed by both structured AND unstructured data; it consumes all 30 features at once. Rung 1 is the same model with the 10 text-derived features removed. The methodology question this answers is "are the text features pulling their weight?" not "are these two separate model families?". In the production sense, Rung 2 is THE final model; Rungs 0 and 1 exist as honest baselines that justify which inputs earned their place in it.
 
-
-
 The Rung 1 to Rung 2 mean-AUC delta is -0.0007 (essentially zero). This is below the design's expected envelope of +0.02 to +0.03. The likely reason, documented in §6 Reflection, is the data-window mismatch: FMP's `/news/stock` endpoint returns only the last 90 days of articles. The walk-forward training window covers 2021-2025 trading days, so the news-sentiment features (`finbert_news_mean_3d`, `finbert_news_mean_30d`, `finbert_press_30d`) are zero across every test fold.
 
 The 5 PCA-of-10-K-embedding features are populated for 19,273 of 25,080 panel rows (the rest are dates before the first 10-K filing in the window, correctly excluded by the as_of_date guard). They contribute no measurable lift either.

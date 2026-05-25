@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 def latest_picks(top_k: int = 5, rung: int = 2) -> list[str]:
     """Return the top-K symbols by prob_up on the most recent prediction date for the chosen rung."""
     import psycopg2
@@ -43,7 +42,6 @@ def latest_picks(top_k: int = 5, rung: int = 2) -> list[str]:
     if df.empty:
         raise RuntimeError(f"No predictions for rung {rung}; run models first.")
     return df["symbol"].tolist()
-
 
 def main() -> None:
     try:
@@ -85,7 +83,6 @@ def main() -> None:
     print(f"Account equity (post-submission): ${float(acct.equity):,.2f}")
     print(f"Submitted {len(submitted)}/{len(picks)} orders.")
     return submitted
-
 
 if __name__ == "__main__":
     main()

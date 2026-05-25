@@ -17,12 +17,10 @@ from silver_text.embed import embed
 
 EMBED_DIM = 384
 
-
 def _to_bytes(vec: np.ndarray) -> bytes:
     """Pack a float32 vector as little-endian bytes."""
     v = vec.astype(np.float32, copy=False)
     return struct.pack(f"<{len(v)}f", *v.tolist())
-
 
 def build_for(source_view: str, target_table: str, source_type_code: str) -> None:
     with pg_conn() as conn:
@@ -105,7 +103,6 @@ def build_for(source_view: str, target_table: str, source_type_code: str) -> Non
         cur.execute(f"CREATE INDEX ON {target_table} (company_key, filing_date)")
     print(f"Wrote {len(df_chunks)} chunks + embeddings to {target_table}")
 
-
 def main() -> None:
     build_for(
         source_view="datos_masked.filings_10k_redacted",
@@ -117,7 +114,6 @@ def main() -> None:
         target_table="silver.silver_filings_8k_chunked",
         source_type_code="8K",
     )
-
 
 if __name__ == "__main__":
     main()

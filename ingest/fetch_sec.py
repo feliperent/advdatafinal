@@ -10,11 +10,9 @@ from tqdm import tqdm
 
 from ingest.common import BRONZE_ROOT, all_tickers, log_ingest, pg_conn
 
-
 def init_sec() -> None:
     ua = os.getenv("SEC_USER_AGENT", "Felipe Renteria <felipe@bookline.ai>")
     set_identity(ua)
-
 
 def fetch_10k_item1a(symbol: str, years: int = 5) -> list[dict]:
     """Pull the last `years` 10-Ks and extract the Item 1A Risk Factors text via tenk.risk_factors."""
@@ -39,7 +37,6 @@ def fetch_10k_item1a(symbol: str, years: int = 5) -> list[dict]:
         except Exception as e:
             print(f"  10-K parse failed for {symbol} ({f.accession_no}): {type(e).__name__}: {e}")
     return out
-
 
 def fetch_8k(symbol: str, months: int = 12) -> list[dict]:
     cutoff = date.today() - timedelta(days=30 * months)
@@ -76,7 +73,6 @@ def fetch_8k(symbol: str, months: int = 12) -> list[dict]:
             print(f"  8-K parse failed for {symbol}: {type(e).__name__}: {e}")
     return out
 
-
 def land_10k(symbol: str, payloads: list[dict]) -> None:
     with pg_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -106,7 +102,6 @@ def land_10k(symbol: str, payloads: list[dict]) -> None:
     base = BRONZE_ROOT / "filings" / "10K" / symbol
     if base.exists():
         log_ingest("sec_10k", symbol, "last_5y", base, len(payloads))
-
 
 def land_8k(symbol: str, payloads: list[dict]) -> None:
     with pg_conn() as conn, conn.cursor() as cur:
@@ -138,7 +133,6 @@ def land_8k(symbol: str, payloads: list[dict]) -> None:
     if base.exists():
         log_ingest("sec_8k", symbol, "last_12m", base, len(payloads))
 
-
 def main() -> None:
     init_sec()
     for symbol in tqdm(all_tickers(), desc="sec"):
@@ -151,7 +145,6 @@ def main() -> None:
         except Exception as e:
             print(f"  8-K all failed for {symbol}: {e}")
         sleep(0.5)
-
 
 if __name__ == "__main__":
     main()

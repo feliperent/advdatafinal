@@ -13,7 +13,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIG_DIR = REPO_ROOT / "report" / "figures"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
-
 def main() -> None:
     with pg_conn() as conn:
         df = pd.read_sql(
@@ -57,7 +56,6 @@ def main() -> None:
         out_html = FIG_DIR / "backtest_pnl.html"
         fig.write_html(str(out_html))
         print(f"PNG export failed ({e}); wrote HTML instead at {out_html}")
-
 
 if __name__ == "__main__":
     main()

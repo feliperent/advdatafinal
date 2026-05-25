@@ -1,6 +1,6 @@
--- ============================================================================
+
 -- 01_raw_schema.sql  -- Raw tables (8 source mirrors + ingest_log)
--- ============================================================================
+
 -- All raw tables are text-typed mirrors of the source API. Casting + cleaning
 -- happen in silver. Idempotency via ON CONFLICT DO UPDATE (the Postgres
 -- equivalent of the midterm's APPLY CHANGES INTO ... STORED AS SCD TYPE 1).

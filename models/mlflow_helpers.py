@@ -12,7 +12,6 @@ TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", f"file://{REPO_ROOT / 'mlruns'}"
 mlflow.set_tracking_uri(TRACKING_URI)
 mlflow.set_experiment("advdatafinal")
 
-
 @contextmanager
 def run(rung: int, fold_id: str, model_family: str, n_features: int):
     with mlflow.start_run(run_name=f"rung{rung}_{fold_id}_{model_family}"):

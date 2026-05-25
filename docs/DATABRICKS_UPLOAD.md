@@ -1,25 +1,23 @@
 # Uploading bronze/ to Databricks Volumes
 
-The local pipeline writes raw API responses to `bronze/` on disk. To run the Databricks DLT
-notebook (`appendix/01_data_pipeline.py`), this folder must be uploaded to a Volume in your
-Databricks workspace. 51 MB across 477 files; takes ~2 minutes on a normal connection.
+The local pipeline writes raw API responses to `bronze/` on disk. The DLT pipeline
+(`appendix/pipelinedatos.sql`) reads them from a Databricks Volume, so the folder needs to
+go up to the workspace once. About 51 MB across 477 files.
 
-## Inventory of what gets uploaded
+## What gets uploaded
 
-| Path | Files | Size | Format |
-|---|---|---|---|
-| `bronze/prices/` | 20 .parquet files | 1.3 MB | Parquet (yfinance OHLCV per stock) |
-| `bronze/fund/income-statement/` | 20 .json files | ~700 KB | JSON (FMP income statements) |
-| `bronze/fund/balance-sheet-statement/` | 20 .json files | ~700 KB | JSON (FMP balance sheets) |
-| `bronze/fund/cash-flow-statement/` | 20 .json files | ~700 KB | JSON (FMP cash flows) |
-| `bronze/news/` | 20 .json files | 2.7 MB | JSON (FMP news bodies) |
-| `bronze/press/` | 20 .json files | 620 KB | JSON (FMP press releases) |
-| `bronze/filings/10K/{symbol}/` | 95 .txt files | ~6 MB | Plain text (Item 1A Risk Factors) |
-| `bronze/filings/8K/{symbol}/` | 262 .txt files | ~38 MB | Plain text (8-K bodies) |
+| Local path | Files | Format |
+|---|---|---|
+| `bronze/prices/` | 20 .parquet | yfinance OHLCV |
+| `bronze/fund/income-statement/` | 20 .json | FMP income statements |
+| `bronze/fund/balance-sheet-statement/` | 20 .json | FMP balance sheets |
+| `bronze/fund/cash-flow-statement/` | 20 .json | FMP cash flows |
+| `bronze/news/` | 20 .json | FMP news bodies |
+| `bronze/press/` | 20 .json | FMP press releases |
+| `bronze/filings/10K/{symbol}/` | 95 .txt | 10-K Item 1A |
+| `bronze/filings/8K/{symbol}/` | 262 .txt | 8-K bodies |
 
-Total: 477 files, 51 MB.
-
-## Target structure on Databricks
+## Where it lands on Databricks
 
 ```
 /Volumes/advdatafinal/raw/landing/prices/<symbol>.parquet
@@ -32,82 +30,47 @@ Total: 477 files, 51 MB.
 /Volumes/advdatafinal/raw/landing/sec_8k/<symbol>/<filing_date>_<accession>.txt
 ```
 
-## Option A: Databricks CLI (recommended for batch uploads)
+## Upload commands
 
-Install once on your laptop:
+One-time setup:
 
 ```bash
 pip install databricks-cli
 databricks configure --token
-# host:  https://<your-workspace>.cloud.databricks.com
-# token: <personal access token from User Settings -> Developer -> Access tokens>
 ```
 
-Then upload the entire bronze/ folder in one command (creates the Volume if missing):
+Upload (creates the Volume if missing):
 
 ```bash
 cd /Users/renteeee/Desktop/advdatafinal
-
 databricks fs mkdirs dbfs:/Volumes/advdatafinal/raw/landing/
 
-# yfinance prices
-databricks fs cp -r bronze/prices/                             dbfs:/Volumes/advdatafinal/raw/landing/prices/
-
-# FMP fundamentals (3 endpoints in 3 sub-folders)
-databricks fs cp -r bronze/fund/income-statement/              dbfs:/Volumes/advdatafinal/raw/landing/income_statement/
-databricks fs cp -r bronze/fund/balance-sheet-statement/       dbfs:/Volumes/advdatafinal/raw/landing/balance_sheet/
-databricks fs cp -r bronze/fund/cash-flow-statement/           dbfs:/Volumes/advdatafinal/raw/landing/cash_flow/
-
-# FMP news + press
-databricks fs cp -r bronze/news/                                dbfs:/Volumes/advdatafinal/raw/landing/news/
-databricks fs cp -r bronze/press/                               dbfs:/Volumes/advdatafinal/raw/landing/press/
-
-# SEC filings (preserves the {symbol}/ subdirectories)
-databricks fs cp -r bronze/filings/10K/                         dbfs:/Volumes/advdatafinal/raw/landing/sec_10k/
-databricks fs cp -r bronze/filings/8K/                          dbfs:/Volumes/advdatafinal/raw/landing/sec_8k/
+databricks fs cp -r bronze/prices/                       dbfs:/Volumes/advdatafinal/raw/landing/prices/
+databricks fs cp -r bronze/fund/income-statement/        dbfs:/Volumes/advdatafinal/raw/landing/income_statement/
+databricks fs cp -r bronze/fund/balance-sheet-statement/ dbfs:/Volumes/advdatafinal/raw/landing/balance_sheet/
+databricks fs cp -r bronze/fund/cash-flow-statement/     dbfs:/Volumes/advdatafinal/raw/landing/cash_flow/
+databricks fs cp -r bronze/news/                         dbfs:/Volumes/advdatafinal/raw/landing/news/
+databricks fs cp -r bronze/press/                        dbfs:/Volumes/advdatafinal/raw/landing/press/
+databricks fs cp -r bronze/filings/10K/                  dbfs:/Volumes/advdatafinal/raw/landing/sec_10k/
+databricks fs cp -r bronze/filings/8K/                   dbfs:/Volumes/advdatafinal/raw/landing/sec_8k/
 ```
 
-Verify with:
+Verify:
 
 ```bash
 databricks fs ls dbfs:/Volumes/advdatafinal/raw/landing/
-databricks fs ls dbfs:/Volumes/advdatafinal/raw/landing/prices/ | head
 ```
 
-## Option B: Databricks UI (drag-and-drop)
+## Parquet prep note
 
-1. Open your workspace `Catalog` browser.
-2. Create catalog `advdatafinal` (if not present).
-3. Inside it, create schema `raw`.
-4. Inside `raw`, create Volume `landing`.
-5. Click `landing`, then `Upload`, and drag the `bronze/` folder. The UI preserves the directory structure.
-
-This works for small batches but is slow for 477 files. CLI is faster.
-
-## Option C: Compressed tarball (if upload is slow)
-
-```bash
-cd /Users/renteeee/Desktop/advdatafinal
-tar czf bronze.tar.gz bronze/                                   # 51 MB -> ~15 MB compressed
-databricks fs cp bronze.tar.gz dbfs:/Volumes/advdatafinal/raw/landing/bronze.tar.gz
-```
-
-Then in a Databricks notebook cell:
-
-```python
-%sh
-cd /Volumes/advdatafinal/raw/landing/
-tar xzf bronze.tar.gz
-```
+`yfinance` writes prices with timestamp[ns] in the `date` column. Spark in Databricks
+rejects INT64 nanosecond parquet timestamps by default. Before uploading, rewrite
+the parquet files so `date` becomes a YYYY-MM-DD string column named `trade_date`.
+A small pyarrow script at `scripts/fix_prices_parquet.py` does this in place.
 
 ## After uploading
 
-Run the pipeline notebook in this order:
-
-1. `appendix/01_data_pipeline.py` — DLT pipeline; Auto Loader will pick up the new files in
-   the Volume and build raw → datos_masked → silver → gold.
-2. `appendix/02_ml_pipeline.py` — ML notebook; trains the 3 rungs against the gold tables
-   and writes predictions + backtest into Delta. MLflow logs to the Databricks workspace.
-
-If you set up `appendix/workflow.yaml` as a Databricks Job, the two notebooks chain
-automatically (`01` triggers `02` on completion).
+1. Run the DLT pipeline that points at `appendix/pipelinedatos.sql` (raw, datos_masked,
+   silver, gold dimensions).
+2. Open `appendix/mlpipeline.py` and run it (FinBERT, MiniLM, PCA, 3 rungs, backtest).
+3. The Job in `appendix/workflow.yaml` chains the two if you want them automated.

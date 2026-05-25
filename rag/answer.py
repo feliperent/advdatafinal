@@ -34,19 +34,16 @@ Instructions:
 4. If the chunks contradict the prediction, say so honestly.
 """
 
-
 def _format_shap(shap_json: dict[str, float] | None) -> str:
     if not shap_json:
         return "  (no SHAP attribution available for this rung/row)"
     items = sorted(shap_json.items(), key=lambda kv: abs(kv[1]), reverse=True)[:8]
     return "\n".join(f"  - {k}: {v:+.4f}" for k, v in items)
 
-
 def _format_chunks(chunks_df) -> str:
     return "\n\n".join(
         f"[{r.chunk_key}]: {(r.body_chunk or '')[:600]}" for _, r in chunks_df.iterrows()
     )
-
 
 def _fetch_prediction_context(symbol: str, date: str, rung: int = 2) -> dict[str, Any]:
     with pg_conn() as conn, conn.cursor() as cur:
@@ -64,7 +61,6 @@ def _fetch_prediction_context(symbol: str, date: str, rung: int = 2) -> dict[str
     if not row:
         return {"prob_up": 0.5, "predicted_class": 0, "shap_json": None}
     return {"prob_up": float(row[0]), "predicted_class": int(row[1]), "shap_json": row[2]}
-
 
 def _template_fallback(question: str, symbol: str, as_of_date: str, ctx: dict, chunks) -> str:
     """Template summary used when the LLM API is unavailable. Cites the top-3 chunks verbatim."""
@@ -84,7 +80,6 @@ def _template_fallback(question: str, symbol: str, as_of_date: str, ctx: dict, c
         f"is available when the Anthropic API has credit. The retrieval, citations, "
         f"and as_of_date guard are all live.)"
     )
-
 
 def answer(
     question: str,
@@ -169,7 +164,6 @@ def answer(
         )
 
     return paragraph, citations, usage
-
 
 if __name__ == "__main__":
     para, cites, usage = answer(

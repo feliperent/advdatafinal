@@ -1,6 +1,6 @@
--- ============================================================================
+
 -- 04_gold_dims.sql  -- Gold dimensions (5 dim tables, star-schema vocabulary)
--- ============================================================================
+
 -- Same shape as the IN014 midterm's gold.dim_area / dim_element / dim_detail:
 -- md5(LOWER(TRIM(col))) primary keys stored as text, attribute columns alongside.
 

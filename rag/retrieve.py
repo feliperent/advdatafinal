@@ -16,10 +16,8 @@ from silver_text.embed import embed
 
 EMBED_DIM = 384
 
-
 def _from_bytes(b: bytes) -> np.ndarray:
     return np.array(struct.unpack(f"<{EMBED_DIM}f", b), dtype=np.float32)
-
 
 @lru_cache(maxsize=1)
 def load_corpus() -> tuple[pd.DataFrame, np.ndarray]:
@@ -43,7 +41,6 @@ def load_corpus() -> tuple[pd.DataFrame, np.ndarray]:
     mat = np.vstack([_from_bytes(bytes(b)) for b in df["embedding"]])
     df = df.drop(columns=["embedding"]).reset_index(drop=True)
     return df, mat
-
 
 def retrieve(
     question: str,
@@ -73,7 +70,6 @@ def retrieve(
     sub["similarity"] = sims
     sub = sub.nlargest(top_k, "similarity")
     return sub
-
 
 if __name__ == "__main__":
     import sys
