@@ -1,10 +1,4 @@
--- pipelinedatos.sql | advdatafinal medallion DLT pipeline (raw -> datos_masked -> silver -> gold)
--- Reads /Volumes/advdatafinal/raw/landing/ (see docs/DATABRICKS_UPLOAD.md).
-
-
--- ====================
--- Catalog + schemas + volume
--- ====================
+-- Databricks notebook source
 
 CREATE CATALOG IF NOT EXISTS advdatafinal;
 CREATE SCHEMA  IF NOT EXISTS advdatafinal.raw;
@@ -12,11 +6,6 @@ CREATE SCHEMA  IF NOT EXISTS advdatafinal.datos_masked;
 CREATE SCHEMA  IF NOT EXISTS advdatafinal.silver;
 CREATE SCHEMA  IF NOT EXISTS advdatafinal.gold;
 CREATE VOLUME  IF NOT EXISTS advdatafinal.raw.landing;
-
-
--- ====================
--- Raw layer (8 streaming tables)
--- ====================
 
 -- raw.prices_raw (yfinance OHLCV)
 CREATE STREAMING TABLE advdatafinal.raw.prices_raw AS
@@ -33,64 +22,52 @@ SELECT
     current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/prices/', format => 'parquet');
 
-
 -- raw.income_statement_raw (FMP /stable/income-statement)
 CREATE STREAMING TABLE advdatafinal.raw.income_statement_raw AS
 SELECT *, current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/income_statement/', format => 'json');
-
 
 -- raw.balance_sheet_raw (FMP /stable/balance-sheet-statement)
 CREATE STREAMING TABLE advdatafinal.raw.balance_sheet_raw AS
 SELECT *, current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/balance_sheet/', format => 'json');
 
-
 -- raw.cash_flow_raw (FMP /stable/cash-flow-statement)
 CREATE STREAMING TABLE advdatafinal.raw.cash_flow_raw AS
 SELECT *, current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/cash_flow/', format => 'json');
-
 
 -- raw.news_raw (FMP /stable/news/stock)
 CREATE STREAMING TABLE advdatafinal.raw.news_raw AS
 SELECT *, current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/news/', format => 'json');
 
-
 -- raw.press_raw (FMP /stable/news/press-releases)
 CREATE STREAMING TABLE advdatafinal.raw.press_raw AS
 SELECT *, current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/press/', format => 'json');
 
-
 -- raw.sec_10k_raw (SEC EDGAR 10-K Item 1A)
 CREATE STREAMING TABLE advdatafinal.raw.sec_10k_raw AS
 SELECT
-    regexp_extract(_metadata.file_path, '/sec_10k/([^/]+)/', 1)                  as symbol,
+    regexp_extract(_metadata.file_path, '/sec_10k/([^/]+)/', 1) as symbol,
     regexp_extract(_metadata.file_path, '/([0-9]{4}-[0-9]{2}-[0-9]{2})\\.txt$', 1) as filing_date,
     value as body,
     _metadata.file_path as accession,
     current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/sec_10k/', format => 'text', wholeText => true);
 
-
 -- raw.sec_8k_raw (SEC EDGAR 8-K events)
 CREATE STREAMING TABLE advdatafinal.raw.sec_8k_raw AS
 SELECT
-    regexp_extract(_metadata.file_path, '/sec_8k/([^/]+)/', 1)         as symbol,
+    regexp_extract(_metadata.file_path, '/sec_8k/([^/]+)/', 1) as symbol,
     regexp_extract(_metadata.file_path, '/([0-9]{4}-[0-9]{2}-[0-9]{2})_', 1) as filing_date,
     value as body,
     _metadata.file_path as accession,
     current_timestamp() as ingest_ts
 FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/sec_8k/', format => 'text', wholeText => true);
 
-
--- ====================
--- datos_masked layer (4 PII regex views: emails + US phones)
--- ====================
-
--- datos_masked.news_redacted (regex mask news bodies)
+-- datos_masked.news_redacted (regex mask email + US phone in news bodies)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.datos_masked.news_redacted AS
 SELECT
     cast(symbol as STRING) as symbol,
@@ -106,8 +83,7 @@ SELECT
     ingest_ts
 FROM STREAM(advdatafinal.raw.news_raw);
 
-
--- datos_masked.press_redacted (regex mask press release bodies)
+-- datos_masked.press_redacted (regex mask email + US phone in press bodies)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.datos_masked.press_redacted AS
 SELECT
     cast(symbol as STRING) as symbol,
@@ -121,8 +97,7 @@ SELECT
     ingest_ts
 FROM STREAM(advdatafinal.raw.press_raw);
 
-
--- datos_masked.filings_10k_redacted (regex mask 10-K bodies)
+-- datos_masked.filings_10k_redacted (regex mask email + US phone in 10-K bodies)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.datos_masked.filings_10k_redacted AS
 SELECT
     symbol, filing_date, accession,
@@ -134,8 +109,7 @@ SELECT
     ingest_ts
 FROM STREAM(advdatafinal.raw.sec_10k_raw);
 
-
--- datos_masked.filings_8k_redacted (regex mask 8-K bodies)
+-- datos_masked.filings_8k_redacted (regex mask email + US phone in 8-K bodies)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.datos_masked.filings_8k_redacted AS
 SELECT
     symbol, filing_date, accession,
@@ -147,12 +121,7 @@ SELECT
     ingest_ts
 FROM STREAM(advdatafinal.raw.sec_8k_raw);
 
-
--- ====================
--- Silver layer (cleaning, typing, idempotent SCD-1, window-function features)
--- ====================
-
--- silver.silver_prices_cleaned (typed prices, SCD-1 idempotency)
+-- silver.prices_typed (intermediate view: cast prices to typed columns)
 CREATE TEMPORARY STREAMING LIVE VIEW prices_typed AS
 SELECT
     symbol,
@@ -166,6 +135,7 @@ SELECT
 FROM STREAM(advdatafinal.raw.prices_raw)
 WHERE close IS NOT NULL AND close <> '';
 
+-- silver.silver_prices_cleaned (SCD-1 idempotent typed prices)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.silver.silver_prices_cleaned;
 
 APPLY CHANGES INTO advdatafinal.silver.silver_prices_cleaned
@@ -174,8 +144,7 @@ APPLY CHANGES INTO advdatafinal.silver.silver_prices_cleaned
   SEQUENCE BY trade_date
   STORED AS SCD TYPE 1;
 
-
--- silver.silver_prices_features (10 technical features via window functions, MV required)
+-- silver.silver_prices_features (10 technical features via window functions)
 CREATE MATERIALIZED VIEW advdatafinal.silver.silver_prices_features AS
 WITH base AS (
     SELECT *,
@@ -211,7 +180,6 @@ SELECT
     sd_logret_20 * SQRT(252) as vol_20d,
     trade_date as as_of_date
 FROM features;
-
 
 -- silver.silver_fundamentals_cleaned (joins 3 raw statements + 4-quarter TTM rollups)
 CREATE MATERIALIZED VIEW advdatafinal.silver.silver_fundamentals_cleaned AS
@@ -282,12 +250,7 @@ SELECT
 FROM ttm
 WHERE revenue_ttm IS NOT NULL;
 
-
--- ====================
--- Gold layer (4 dimensions: streaming with md5 hash keys + GROUP BY)
--- ====================
-
--- gold.dim_date (calendar 2021-2025)
+-- gold.dim_date (calendar 2021-2025 with is_trading_day flag)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.gold.dim_date AS
 SELECT
     md5(cast(full_date as STRING)) as date_key,
@@ -302,14 +265,12 @@ FROM (
     SELECT explode(sequence(DATE '2021-01-01', DATE '2025-12-31', INTERVAL 1 DAY)) as full_date
 );
 
-
--- gold.dim_sector (5 sectors)
+-- gold.dim_sector (5 sector codes hashed)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.gold.dim_sector AS
 SELECT md5(LOWER(TRIM(sector_name))) as sector_key, sector_name
 FROM (VALUES
     ('Technology'), ('Financials'), ('Healthcare'), ('Industrials'), ('Consumer')
 ) AS s(sector_name);
-
 
 -- gold.dim_company (20 stocks across 5 sectors)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.gold.dim_company AS
@@ -338,8 +299,7 @@ SELECT
 FROM mapping m
 WHERE m.symbol IN (SELECT symbol FROM symbols);
 
-
--- gold.dim_filing_type (4 codes)
+-- gold.dim_filing_type (4 source codes: 10K, 8K, NEWS, PRESS)
 CREATE OR REFRESH STREAMING TABLE advdatafinal.gold.dim_filing_type AS
 SELECT md5(LOWER(TRIM(code))) as filing_type_key, code, label
 FROM (VALUES
