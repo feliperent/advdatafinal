@@ -243,29 +243,22 @@ SELECT
 FROM ttm
 WHERE revenue_ttm IS NOT NULL;
 
--- gold.dim_date (calendar 2021-2025 with is_trading_day flag)
+-- gold.dim_date (one row per trading day actually observed in silver_prices_cleaned)
 CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_date AS
 SELECT
-    md5(cast(full_date as STRING)) as date_key,
-    full_date,
-    YEAR(full_date)                              as year,
-    MONTH(full_date)                             as month,
-    DAY(full_date)                               as day,
-    WEEKOFYEAR(full_date)                        as week,
-    DAYOFWEEK(full_date)                         as day_of_week,
-    (DAYOFWEEK(full_date) BETWEEN 2 AND 6)       as is_trading_day
+    md5(cast(trade_date as STRING)) as date_key,
+    trade_date as full_date,
+    YEAR(trade_date)        as year,
+    MONTH(trade_date)       as month,
+    DAY(trade_date)         as day,
+    WEEKOFYEAR(trade_date)  as week,
+    DAYOFWEEK(trade_date)   as day_of_week,
+    TRUE                    as is_trading_day
 FROM (
-    SELECT explode(sequence(DATE '2021-01-01', DATE '2025-12-31', INTERVAL 1 DAY)) as full_date
+    SELECT DISTINCT trade_date FROM advdatafinal.silver.silver_prices_cleaned
 );
 
--- gold.dim_sector (5 sector codes hashed)
-CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_sector AS
-SELECT md5(LOWER(TRIM(sector_name))) as sector_key, sector_name
-FROM (VALUES
-    ('Technology'), ('Financials'), ('Healthcare'), ('Industrials'), ('Consumer')
-) AS s(sector_name);
-
--- gold.dim_company (20 stocks across 5 sectors)
+-- gold.dim_company (joined from silver_prices_cleaned + a 20-row sector mapping)
 CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_company AS
 WITH symbols AS (
     SELECT DISTINCT symbol FROM advdatafinal.silver.silver_prices_cleaned
@@ -290,14 +283,80 @@ SELECT
     md5(LOWER(TRIM(m.sector_name))) as sector_key,
     m.sector_name
 FROM mapping m
-WHERE m.symbol IN (SELECT symbol FROM symbols);
+JOIN symbols s ON s.symbol = m.symbol;
 
--- gold.dim_filing_type (4 source codes: 10K, 8K, NEWS, PRESS)
+-- gold.dim_sector (one row per sector that exists in dim_company)
+CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_sector AS
+SELECT DISTINCT
+    sector_key,
+    sector_name
+FROM advdatafinal.gold.dim_company;
+
+-- gold.dim_filing_type (one row per text source actually present in datos_masked.*)
 CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_filing_type AS
-SELECT md5(LOWER(TRIM(code))) as filing_type_key, code, label
-FROM (VALUES
-    ('10K',   '10-K Annual Report'),
-    ('8K',    '8-K Material Event'),
-    ('NEWS',  'News Article'),
-    ('PRESS', 'Press Release')
-) AS t(code, label);
+WITH present AS (
+    SELECT '10K'   AS code, COUNT(*) AS n FROM advdatafinal.datos_masked.filings_10k_redacted
+    UNION ALL
+    SELECT '8K'    AS code, COUNT(*) FROM advdatafinal.datos_masked.filings_8k_redacted
+    UNION ALL
+    SELECT 'NEWS'  AS code, COUNT(*) FROM advdatafinal.datos_masked.news_redacted
+    UNION ALL
+    SELECT 'PRESS' AS code, COUNT(*) FROM advdatafinal.datos_masked.press_redacted
+),
+labels AS (
+    SELECT * FROM (VALUES
+        ('10K',   '10-K Annual Report'),
+        ('8K',    '8-K Material Event'),
+        ('NEWS',  'News Article'),
+        ('PRESS', 'Press Release')
+    ) AS t(code, label)
+)
+SELECT
+    md5(LOWER(TRIM(p.code))) AS filing_type_key,
+    p.code,
+    l.label,
+    p.n AS row_count
+FROM present p
+JOIN labels l ON l.code = p.code
+WHERE p.n > 0;
+
+-- gold.fct_feature_panel_daily (the 20-feature ML training table)
+-- One row per (symbol, trade_date). Asof-joins fundamentals to the latest filing on or before the date.
+-- 5-day forward log return + binary up label are joined back via LEAD windows.
+CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.fct_feature_panel_daily AS
+WITH price_with_target AS (
+    SELECT
+        p.*,
+        LEAD(close_px, 5) OVER (PARTITION BY symbol ORDER BY trade_date) AS close_px_t5
+    FROM advdatafinal.silver.silver_prices_features p
+),
+fundamentals_asof AS (
+    SELECT
+        pf.price_key, pf.symbol, pf.trade_date,
+        f.roe, f.roa, f.debt_eq, f.gross_margin, f.op_margin, f.asset_turnover,
+        f.revenue_ttm, f.net_income_ttm, f.ebitda_ttm, f.free_cash_flow_ttm,
+        f.total_assets, f.total_equity, f.total_debt
+    FROM advdatafinal.silver.silver_prices_features pf
+    LEFT JOIN advdatafinal.silver.silver_fundamentals_cleaned f
+        ON pf.symbol = f.symbol
+        AND f.filing_date = (
+            SELECT MAX(filing_date)
+            FROM advdatafinal.silver.silver_fundamentals_cleaned f2
+            WHERE f2.symbol = pf.symbol AND f2.filing_date <= pf.trade_date
+        )
+)
+SELECT
+    p.price_key,
+    p.date_key,
+    p.company_key,
+    p.symbol,
+    p.trade_date,
+    p.log_ret_1d, p.sma_5, p.sma_20, p.sma_50, p.ema_12, p.ema_26,
+    p.macd_hist, p.bb_z, p.vol_20d,
+    fa.roe, fa.roa, fa.debt_eq, fa.gross_margin, fa.op_margin, fa.asset_turnover,
+    CASE WHEN p.close_px_t5 IS NOT NULL AND p.close_px > 0
+         THEN LN(p.close_px_t5 / p.close_px) END AS y_5d_logret,
+    CASE WHEN p.close_px_t5 IS NOT NULL AND p.close_px > 0
+         THEN CASE WHEN p.close_px_t5 > p.close_px THEN 1 ELSE 0 END END AS y_5d_up
+FROM price_with_target p
+LEFT JOIN fundamentals_asof fa USING (price_key);
