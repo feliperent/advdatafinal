@@ -66,6 +66,26 @@ def _fetch_prediction_context(symbol: str, date: str, rung: int = 2) -> dict[str
     return {"prob_up": float(row[0]), "predicted_class": int(row[1]), "shap_json": row[2]}
 
 
+def _template_fallback(question: str, symbol: str, as_of_date: str, ctx: dict, chunks) -> str:
+    """Template summary used when the LLM API is unavailable. Cites the top-3 chunks verbatim."""
+    direction = "UP" if ctx["predicted_class"] else "DOWN"
+    top3 = chunks.head(3)
+    cites = ", ".join(f"[{r.chunk_key}]" for _, r in top3.iterrows())
+    quotes = "\n\n".join(
+        f"[{r.chunk_key}] sim={r.similarity:.3f}: {(r.body_chunk or '')[:280]}..."
+        for _, r in top3.iterrows()
+    )
+    return (
+        f"The Rung-{ctx.get('rung', 2)} model predicts {symbol} {direction} on {as_of_date} "
+        f"with probability {ctx['prob_up']:.2f}. The most semantically relevant passages "
+        f"from {symbol}'s filings retrieved for the question '{question}' are {cites}. "
+        f"Top excerpts:\n\n{quotes}\n\n"
+        f"(Note: this is the template-fallback summary; the Claude-Haiku-generated paragraph "
+        f"is available when the Anthropic API has credit. The retrieval, citations, "
+        f"and as_of_date guard are all live.)"
+    )
+
+
 def answer(
     question: str,
     symbol: str,
@@ -75,11 +95,12 @@ def answer(
 ) -> tuple[str, list[str], dict[str, Any]]:
     """Return (paragraph, citation_keys, usage_dict)."""
     ctx = _fetch_prediction_context(symbol, as_of_date, rung=rung)
+    ctx["rung"] = rung
     chunks = retrieve(question, symbol=symbol, as_of_date_max=as_of_date, top_k=top_k)
 
     if chunks.empty:
         msg = f"No filings or news available for {symbol} on or before {as_of_date}."
-        return msg, [], {"tokens_in": 0, "tokens_out": 0, "latency_ms": 0}
+        return msg, [], {"tokens_in": 0, "tokens_out": 0, "latency_ms": 0, "source": "no-retrieval"}
 
     prompt = PROMPT_TEMPLATE.format(
         symbol=symbol,
@@ -93,13 +114,27 @@ def answer(
     )
 
     t0 = time.time()
-    resp = CLIENT.messages.create(
-        model=MODEL,
-        max_tokens=600,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    paragraph: str
+    usage: dict[str, Any]
+    try:
+        resp = CLIENT.messages.create(
+            model=MODEL,
+            max_tokens=600,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        paragraph = resp.content[0].text
+        usage = {
+            "tokens_in": resp.usage.input_tokens,
+            "tokens_out": resp.usage.output_tokens,
+            "source": "claude-haiku",
+        }
+    except Exception as e:
+        # Graceful fallback: Anthropic credit exhaustion, network error, etc.
+        paragraph = _template_fallback(question, symbol, as_of_date, ctx, chunks)
+        usage = {"tokens_in": 0, "tokens_out": 0, "source": "template-fallback", "error": str(e)[:200]}
+
     latency_ms = int((time.time() - t0) * 1000)
-    paragraph = resp.content[0].text
+    usage["latency_ms"] = latency_ms
     citations = list(chunks["chunk_key"])
 
     # Audit log
@@ -128,15 +163,12 @@ def answer(
               (question, symbol, as_of_date, rung, top_k_chunk_ids, llm_model, tokens_in, tokens_out, response, latency_ms)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (question, symbol, as_of_date, rung, citations, MODEL,
-             resp.usage.input_tokens, resp.usage.output_tokens, paragraph, latency_ms),
+            (question, symbol, as_of_date, rung, citations,
+             MODEL if usage.get("source") == "claude-haiku" else "template-fallback",
+             usage.get("tokens_in", 0), usage.get("tokens_out", 0), paragraph, latency_ms),
         )
 
-    return paragraph, citations, {
-        "tokens_in": resp.usage.input_tokens,
-        "tokens_out": resp.usage.output_tokens,
-        "latency_ms": latency_ms,
-    }
+    return paragraph, citations, usage
 
 
 if __name__ == "__main__":
