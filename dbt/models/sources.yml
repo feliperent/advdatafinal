@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw landing schema. Text-typed mirrors of source APIs.
+    schema: raw
+    tables:
+      - name: prices_raw
+        description: yfinance OHLCV daily bars
+      - name: income_statement_raw
+        description: FMP quarterly income statement
+      - name: balance_sheet_raw
+        description: FMP quarterly balance sheet
+      - name: cash_flow_raw
+        description: FMP quarterly cash flow
+      - name: news_raw
+        description: FMP /stable/news/stock articles with body text
+      - name: press_raw
+        description: FMP /stable/news/press-releases with body text
+      - name: sec_10k_raw
+        description: SEC EDGAR 10-K Item 1A Risk Factors
+      - name: sec_8k_raw
+        description: SEC EDGAR 8-K material events
+      - name: ingest_log
+        description: Per-write audit table with sha256 checksums

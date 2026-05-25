@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: silver_prices_cleaned
+    description: |
+      Cleaned daily prices + 10 technical features (one-tier silver, midterm style).
+      RSI-14 is populated by silver_text/post_rsi.py after dbt run because Wilder smoothing
+      is recursive and awkward in pure SQL.
+    columns:
+      - name: price_key
+        description: md5(symbol || '|' || trade_date)
+        tests:
+          - not_null
+          - unique
+      - name: date_key
+        description: md5(trade_date)
+        tests:
+          - not_null
+      - name: company_key
+        description: md5(lower(trim(symbol)))
+        tests:
+          - not_null
+      - name: trade_date
+        tests:
+          - not_null
+      - name: as_of_date
+        description: Day at which all features became knowable (== trade_date for price-only features)
+        tests:
+          - not_null
+
+  - name: silver_fundamentals_cleaned
+    description: |
+      Joins the 3 raw fundamentals tables and produces TTM rollups + classic ratios.
+      Denormalised: every row carries symbol + company_key plus all TTM-rolled metrics.
+      PE/PB/FCF yield/EV-EBITDA are computed downstream in gold where price meets fundamentals.
+    columns:
+      - name: fund_key
+        description: md5(symbol || '|' || filing_date)
+        tests:
+          - not_null
+          - unique
+      - name: company_key
+        tests:
+          - not_null
+      - name: filing_date
+        tests:
+          - not_null
+      - name: as_of_date
+        tests:
+          - not_null
