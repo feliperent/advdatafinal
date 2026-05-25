@@ -24,10 +24,12 @@ def load_model():
 def score_text(text: str, tok, model) -> float:
     if not text or not str(text).strip():
         return 0.0
-    enc = tok(str(text)[:512], return_tensors="pt", truncation=True, max_length=512)
+    # Let the tokenizer truncate to 512 TOKENS (do NOT pre-slice to 512 chars; that loses ~90% of long articles).
+    enc = tok(str(text), return_tensors="pt", truncation=True, max_length=512)
     out = model(**enc).logits.softmax(dim=-1).squeeze().tolist()
-    # FinBERT tone label order: [positive, negative, neutral]
-    return float(out[0] - out[1])
+    # FinBERT-tone label order (verified empirically against m.config.id2label):
+    # {0: Neutral, 1: Positive, 2: Negative}. Scalar score = P(Positive) - P(Negative) in [-1, +1].
+    return float(out[1] - out[2])
 
 
 def score_table(source_view: str, target_table: str, body_col: str, id_col: str) -> None:

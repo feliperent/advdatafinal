@@ -46,8 +46,10 @@ def land(symbol: str, articles: list[dict]) -> None:
             )
             """
         )
+        import hashlib as _hl
         for a in articles:
-            aid = f"{symbol}::{a.get('publishedDate', '')}::{(a.get('url') or '')[:120]}"[:255]
+            url_hash = _hl.md5((a.get("url") or "").encode()).hexdigest()[:12]
+            aid = f"{symbol}::{a.get('publishedDate', '')}::{url_hash}"
             cur.execute(
                 """
                 INSERT INTO raw.news_raw (article_id, symbol, published_at, title, site, url, body)

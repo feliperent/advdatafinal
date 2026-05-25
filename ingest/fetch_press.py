@@ -40,9 +40,11 @@ def land(symbol: str, releases: list[dict]) -> None:
             )
             """
         )
+        import hashlib as _hl
         for p in releases:
             pub = p.get("publishedDate") or p.get("date") or ""
-            pid = f"{symbol}::{pub}::{(p.get('title') or '')[:120]}"[:255]
+            body_hash = _hl.md5(((p.get("title") or "") + "|" + (p.get("text") or "")).encode()).hexdigest()[:12]
+            pid = f"{symbol}::{pub}::{body_hash}"
             cur.execute(
                 """
                 INSERT INTO raw.press_raw (press_id, symbol, published_at, title, body)

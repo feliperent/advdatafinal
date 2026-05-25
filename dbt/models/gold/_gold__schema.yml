@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: Daily calendar 2021-01-01 to 2025-12-31. is_trading_day flags Mon-Fri.
+    columns:
+      - name: date_key
+        tests: [not_null, unique]
+      - name: full_date
+        tests: [not_null, unique]
+
+  - name: dim_sector
+    description: 5 sectors used by the universe.
+    columns:
+      - name: sector_key
+        tests: [not_null, unique]
+
+  - name: dim_company
+    description: 20-ticker company dimension with sector FK.
+    columns:
+      - name: company_key
+        tests: [not_null, unique]
+      - name: symbol
+        tests: [not_null, unique]
+      - name: sector_key
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_sector')
+              field: sector_key
+
+  - name: dim_filing_type
+    description: 4 filing-type codes used by the RAG corpus.
+    columns:
+      - name: filing_type_key
+        tests: [not_null, unique]
+      - name: code
+        tests: [not_null, unique]

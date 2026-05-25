@@ -51,15 +51,29 @@ def fetch_8k(symbol: str, months: int = 12) -> list[dict]:
         if fd and fd < cutoff:
             break
         try:
+            eightk = f.obj()
+            # eightk.text is a METHOD (not attribute) that returns the full filing body.
+            # str(eightk) only returns a one-line summary, which is useless for RAG.
+            body = ""
+            if eightk and hasattr(eightk, "text"):
+                t = eightk.text
+                body = t() if callable(t) else str(t)
+            if not body or len(body) < 200:
+                # Fallback: try filing.markdown() then filing.text()
+                for accessor in (getattr(f, "markdown", None), getattr(f, "text", None)):
+                    if callable(accessor):
+                        body = accessor()
+                        if body and len(body) >= 200:
+                            break
             out.append(
                 dict(
                     accession=str(f.accession_no),
                     filing_date=str(f.filing_date),
-                    body=str(f.obj()) if f.obj() else "",
+                    body=body or "",
                 )
             )
         except Exception as e:
-            print(f"  8-K parse failed for {symbol}: {e}")
+            print(f"  8-K parse failed for {symbol}: {type(e).__name__}: {e}")
     return out
 
 

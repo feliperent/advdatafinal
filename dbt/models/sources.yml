@@ -23,3 +23,16 @@ sources:
         description: SEC EDGAR 8-K material events
       - name: ingest_log
         description: Per-write audit table with sha256 checksums
+
+  - name: silver_python
+    description: Silver tables built by Python sub-pipelines (FinBERT scoring, chunking, embeddings).
+    schema: silver
+    tables:
+      - name: silver_news_scored
+        description: News articles + FinBERT scalar score in [-1, +1]
+      - name: silver_press_scored
+        description: Press releases + FinBERT scalar score
+      - name: silver_filings_10k_chunked
+        description: 10-K Item 1A text chunked (500 tokens, 50 overlap) with 384-dim embedding
+      - name: silver_filings_8k_chunked
+        description: 8-K text chunked + embedded

@@ -62,7 +62,7 @@ def land_to_raw(symbol: str, df: pd.DataFrame):
                     str(r.get("high", "")),
                     str(r.get("low", "")),
                     str(r.get("close", "")),
-                    str(r.get("adj_close", r.get("close", ""))),
+                    str(r["adj_close"]) if "adj_close" in r and pd.notna(r["adj_close"]) else "",
                     str(int(r["volume"])) if pd.notna(r.get("volume")) else "",
                 )
             )
