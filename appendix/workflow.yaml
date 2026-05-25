@@ -1,18 +1,27 @@
-## Databricks Job (workflow) | chains 01_data_pipeline.sql -> 02_ml_pipeline.py
+## Databricks Job (workflow)
+## Chains: DLT pipeline (01_data_pipeline.sql)  ->  notebook task (02_ml_pipeline.py)
 ##
-## NEW: notebook paths now resolve to the GitHub repo at https://github.com/feliperent/advdatafinal
-## (Databricks pulls the specified branch/tag on every Job run, so the workspace stays in sync
-## with whatever is on GitHub main).
+## IMPORTANT: 01_data_pipeline.sql uses DLT syntax (CREATE STREAMING TABLE,
+## APPLY CHANGES INTO, CREATE MATERIALIZED VIEW). These run in a DLT PIPELINE,
+## not in a regular Job notebook_task. So the Job below has two task types:
 ##
-## To create the Job:
-##   Option A. UI:  Databricks workspace -> Workflows -> Create Job -> Edit JSON, paste this YAML
-##   Option B. CLI: databricks jobs create --json-file appendix/workflow.yaml
+##   - data_pipeline   ->  pipeline_task   (triggers an existing DLT pipeline by ID)
+##   - ml_pipeline     ->  notebook_task   (runs 02_ml_pipeline.py as a normal notebook)
 ##
-## Prerequisites:
-##   1. bronze/ uploaded to /Volumes/advdatafinal/raw/landing/ (see docs/DATABRICKS_UPLOAD.md)
-##   2. Repos -> Add Repo configured with https://github.com/feliperent/advdatafinal.git
-##      (only needed if you want to browse the notebooks in the UI; the Job itself uses git_source
-##      below and does not require the Repos integration to run)
+## Pre-requisites (one-time, UI):
+##   1. Repos:    /Workspace/Repos/<your-user>/advdatafinal pointing at the GitHub repo
+##   2. Volume:   bronze/ uploaded to /Volumes/advdatafinal/raw/landing/ (see docs/DATABRICKS_UPLOAD.md)
+##   3. DLT pipeline:
+##        Workflows -> Delta Live Tables -> Create pipeline
+##        Source notebook: /Workspace/Repos/<your-user>/advdatafinal/appendix/01_data_pipeline.sql
+##        Target catalog:   advdatafinal
+##        Compute:          single-node, Core edition
+##        -> Copy the resulting pipeline_id (visible in the URL bar)
+##        -> Paste it as <PASTE_DLT_PIPELINE_ID_HERE> below.
+##
+## Once the pipeline_id is in, create the Job:
+##   UI:  Workflows -> Create Job -> Edit JSON -> paste this YAML
+##   CLI: databricks jobs create --json-file appendix/workflow.yaml
 
 resources:
   jobs:
@@ -20,49 +29,45 @@ resources:
       name: advdatafinal-pipeline
       description: |
         Full medallion + ML pipeline for the IN014 final project.
-        Stage 1 (DLT data pipeline, pure SQL) builds raw/datos_masked/silver/gold structure.
-        Stage 2 (ML notebook, Python) trains 3 model rungs, writes predictions + backtest.
+        Task 1 triggers the DLT data pipeline (raw -> datos_masked -> silver -> gold dims).
+        Task 2 runs the ML notebook (FinBERT + MiniLM + PCA + 3 model rungs + backtest).
 
-      # Job-level git source. Every Job run checks out this branch from GitHub before
-      # running notebook tasks. Auditable: each Job run logs the resolved commit SHA.
+      # Optional git source for tasks that use SOURCE=GIT. The DLT pipeline itself is
+      # already configured to read from a notebook path; this git_source is here for the
+      # notebook task in case you'd rather pin the ML notebook to a commit SHA via git_tag.
       git_source:
         git_url: https://github.com/feliperent/advdatafinal
         git_provider: gitHub
         git_branch: main
-        # To pin to an immutable version (recommended for the final submission),
-        # uncomment the next line and comment out git_branch:
+        # For final submission, replace git_branch with an immutable git_tag:
         # git_tag: v1.0
 
       tasks:
-        # Stage 1: data pipeline (DLT, pure SQL)
+        # Task 1: DLT pipeline (runs the 01_data_pipeline.sql DLT notebook)
         - task_key: data_pipeline
-          description: Medallion DLT pipeline | raw -> datos_masked -> silver -> gold
-          notebook_task:
-            notebook_path: appendix/01_data_pipeline.sql
-            source: GIT
+          description: Medallion DLT pipeline | raw -> datos_masked -> silver -> gold dims
+          pipeline_task:
+            pipeline_id: <PASTE_DLT_PIPELINE_ID_HERE>
+            full_refresh: false   # true on first run; false on subsequent runs to pick up only new data
           timeout_seconds: 1800   # 30 min
-          max_retries: 0
-          new_cluster:
-            spark_version: 14.3.x-scala2.12
-            node_type_id: i3.xlarge     # adjust to your Free Edition allowed types
-            num_workers: 0              # single-node cluster sufficient at 25k rows
 
-        # Stage 2: ML pipeline (depends_on stage 1)
+        # Task 2: ML notebook (depends on data_pipeline; pulled from GitHub via git_source)
         - task_key: ml_pipeline
-          description: Train Rung 0/1/2 + write predictions + walk-forward backtest
+          description: FinBERT + MiniLM + PCA + 3 rungs (ARIMA, XGB structured, XGB + text) + backtest
           notebook_task:
             notebook_path: appendix/02_ml_pipeline.py
-            source: GIT
+            source: GIT     # pulled from the git_source above
           timeout_seconds: 3600   # 1 hour
           depends_on:
             - task_key: data_pipeline
           new_cluster:
-            spark_version: 14.3.x-scala2.12     # use ...-ml runtime variant for built-in xgboost
-            node_type_id: i3.xlarge
-            num_workers: 0
+            # ML runtime image so xgboost, mlflow, sklearn are pre-installed
+            spark_version: 14.3.x-cpu-ml-scala2.12
+            node_type_id: i3.xlarge   # adjust to your Free Edition allowed types
+            num_workers: 0            # single-node sufficient at 25k rows
             data_security_mode: SINGLE_USER
 
-      # Optional schedule. Comment out for ad-hoc runs only.
+      # Optional schedule. Comment out for ad-hoc runs.
       schedule:
         # quartz_cron_expression: "0 0 3 * * ?"
         # timezone_id: UTC
@@ -70,4 +75,4 @@ resources:
 
       email_notifications:
         on_failure:
-          - felipe@bookline.ai
+          - lfrenteria33@gmail.com
