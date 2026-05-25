@@ -20,29 +20,56 @@ A volume `advdatafinal.raw.landing` holds the bronze files, organised one folder
 source: `prices/`, `income_statement/`, `balance_sheet/`, `cash_flow/`, `news/`, `press/`,
 `sec_10k/<symbol>/`, `sec_8k/<symbol>/`.
 
-### Tables and row counts (verified 2026-05-26)
+### Tables and row counts (verified 2026-05-26 01:38)
 
-| Schema | Table | Type | Rows |
-|---|---|---|---|
-| raw | prices_raw | streaming table | ~25,100 |
-| raw | income_statement_raw | streaming table | 80 |
-| raw | balance_sheet_raw | streaming table | 80 |
-| raw | cash_flow_raw | streaming table | 80 |
-| raw | news_raw | streaming table | 3,856 |
-| raw | press_raw | streaming table | 563 |
-| raw | sec_10k_raw | streaming table | 95 |
-| raw | sec_8k_raw | streaming table | 262 |
-| datos_masked | news_redacted | streaming table | 3,856 |
-| datos_masked | press_redacted | streaming table | 563 |
-| datos_masked | filings_10k_redacted | streaming table | 95 |
-| datos_masked | filings_8k_redacted | streaming table | 262 |
-| silver | silver_prices_cleaned | SCD-1 streaming | 25,100 |
-| silver | silver_prices_features | materialised view | 25,100 |
-| silver | silver_fundamentals_cleaned | materialised view | 400 |
-| gold | dim_date | materialised view | 1,826 |
-| gold | dim_sector | materialised view | 5 |
-| gold | dim_company | materialised view | 20 |
-| gold | dim_filing_type | materialised view | 4 |
+| Schema | Table | Type | Rows | Derived from |
+|---|---|---|---|---|
+| raw | prices_raw | streaming table | 25,100 | Volume parquet (Auto Loader) |
+| raw | income_statement_raw | streaming table | 400 | Volume JSON (Auto Loader) |
+| raw | balance_sheet_raw | streaming table | 400 | Volume JSON (Auto Loader) |
+| raw | cash_flow_raw | streaming table | 400 | Volume JSON (Auto Loader) |
+| raw | news_raw | streaming table | 3,856 | Volume JSON (Auto Loader) |
+| raw | press_raw | streaming table | 564 | Volume JSON (Auto Loader) |
+| raw | sec_10k_raw | streaming table | 95 | Volume text (Auto Loader) |
+| raw | sec_8k_raw | streaming table | 262 | Volume text (Auto Loader) |
+| datos_masked | news_redacted | streaming table | 3,856 | raw.news_raw |
+| datos_masked | press_redacted | streaming table | 564 | raw.press_raw |
+| datos_masked | filings_10k_redacted | streaming table | 95 | raw.sec_10k_raw |
+| datos_masked | filings_8k_redacted | streaming table | 262 | raw.sec_8k_raw |
+| silver | silver_prices_cleaned | SCD-1 streaming | 25,100 | raw.prices_raw via APPLY CHANGES |
+| silver | silver_prices_features | materialised view | 25,100 | silver_prices_cleaned + window functions |
+| silver | silver_fundamentals_cleaned | materialised view | 400 | raw.{inc,bs,cf}_statement_raw + TTM |
+| gold | dim_date | materialised view | 1,255 | DISTINCT trade_date from silver_prices_cleaned |
+| gold | dim_company | materialised view | 20 | DISTINCT symbol from silver_prices_cleaned + sector map |
+| gold | dim_sector | materialised view | 5 | DISTINCT sector_* from dim_company |
+| gold | dim_filing_type | materialised view | 4 | datos_masked.*_redacted COUNT > 0 |
+| gold | fct_feature_panel_daily | materialised view | 25,100 | silver_prices_features + silver_fundamentals_cleaned (asof) |
+
+Every dimension and the only fact materialised in the DLT DAG derive from a silver
+table or another gold table - no static VALUES are emitted into gold any more.
+
+### DAG lineage
+
+```
+raw.prices_raw           --> silver.silver_prices_cleaned (SCD-1)
+                            --> silver.silver_prices_features (MV, window fn)
+                                  --> gold.fct_feature_panel_daily (MV)
+                            --> gold.dim_date (MV, DISTINCT trade_date)
+                            --> gold.dim_company (MV, DISTINCT symbol + map)
+                                  --> gold.dim_sector (MV, DISTINCT sector)
+raw.{inc,bs,cf}_raw      --> silver.silver_fundamentals_cleaned (MV)
+                                  --> gold.fct_feature_panel_daily (joined asof)
+raw.news_raw             --> datos_masked.news_redacted        --> gold.dim_filing_type
+raw.press_raw            --> datos_masked.press_redacted       --> gold.dim_filing_type
+raw.sec_10k_raw          --> datos_masked.filings_10k_redacted --> gold.dim_filing_type
+raw.sec_8k_raw           --> datos_masked.filings_8k_redacted  --> gold.dim_filing_type
+```
+
+The text-side gold tables (`fct_sentiment_per_day`, `fct_embedding_per_company`,
+`fct_predictions`, `fct_backtest_pnl_daily`) live in `mlpipeline.py` because they
+need PyTorch (FinBERT, MiniLM) and sklearn / xgboost (PCA, training, backtest).
+The notebook runs as the second task in `appendix/workflow.yaml`, reading
+`gold.fct_feature_panel_daily` and writing back to gold.
 
 ### DLT pipeline
 
