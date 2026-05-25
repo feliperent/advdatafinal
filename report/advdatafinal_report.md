@@ -359,7 +359,7 @@ raw.* (source)
 
 ## 5.1 Ablation summary (AUC per rung across 11 walk-forward folds)
 
-All three rungs trained on the same train/test splits with identical evaluation. Rung 0 sampled 20 test rows per stock per fold (400 evaluations per fold) to keep ARIMA runtime tractable; Rungs 1 and 2 evaluated on the full test window. The AUC metric is robust to this sampling difference since per-row predictions are still independent draws from the same distribution.
+All three rungs trained on the same train/test splits with identical evaluation. Rung 0 sampled 20 test rows per stock per fold (400 evaluations per fold) to keep ARIMA runtime tractable; Rungs 1 and 2 evaluated on the full test window. The AUC metric is stable across the sampling difference since per-row predictions are still independent draws from the same distribution.
 
 | Fold start | Rung 1 (XGB structured) | Rung 2 (XGB + text) |
 |---|---:|---:|
