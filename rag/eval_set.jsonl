@@ -1,0 +1,20 @@
+{"question": "What are Apple's supply chain concentration risks?", "symbol": "AAPL", "as_of_date": "2025-12-01", "expected_substring": "10K-AAPL-"}
+{"question": "How does Microsoft describe risks to its cloud infrastructure?", "symbol": "MSFT", "as_of_date": "2025-12-01", "expected_substring": "10K-MSFT-"}
+{"question": "What regulatory risks does Alphabet face from antitrust scrutiny?", "symbol": "GOOGL", "as_of_date": "2025-12-01", "expected_substring": "10K-GOOGL-"}
+{"question": "How does NVIDIA describe its semiconductor concentration and export-control risk?", "symbol": "NVDA", "as_of_date": "2025-12-01", "expected_substring": "10K-NVDA-"}
+{"question": "What credit and counterparty risks does JPMorgan disclose?", "symbol": "JPM", "as_of_date": "2025-12-01", "expected_substring": "10K-JPM-"}
+{"question": "What macroeconomic risks does Bank of America cite?", "symbol": "BAC", "as_of_date": "2025-12-01", "expected_substring": "10K-BAC-"}
+{"question": "How does Goldman Sachs describe trading and market-making risks?", "symbol": "GS", "as_of_date": "2025-12-01", "expected_substring": "10K-GS-"}
+{"question": "What credit-card chargeback and fraud risks does American Express disclose?", "symbol": "AXP", "as_of_date": "2025-12-01", "expected_substring": "10K-AXP-"}
+{"question": "How does Johnson & Johnson describe product liability and litigation risks?", "symbol": "JNJ", "as_of_date": "2025-12-01", "expected_substring": "10K-JNJ-"}
+{"question": "What regulatory risks does UnitedHealth face from US healthcare reform?", "symbol": "UNH", "as_of_date": "2025-12-01", "expected_substring": "10K-UNH-"}
+{"question": "How does Pfizer describe patent-cliff and generic-competition risks?", "symbol": "PFE", "as_of_date": "2025-12-01", "expected_substring": "10K-PFE-"}
+{"question": "What clinical-trial and FDA-approval risks does Eli Lilly disclose?", "symbol": "LLY", "as_of_date": "2025-12-01", "expected_substring": "10K-LLY-"}
+{"question": "What defense-program and 737-MAX-related risks does Boeing disclose?", "symbol": "BA", "as_of_date": "2025-12-01", "expected_substring": "10K-BA-"}
+{"question": "How does Caterpillar describe commodity-price and global-construction-cycle risks?", "symbol": "CAT", "as_of_date": "2025-12-01", "expected_substring": "10K-CAT-"}
+{"question": "What aviation and process-controls risks does Honeywell disclose?", "symbol": "HON", "as_of_date": "2025-12-01", "expected_substring": "10K-HON-"}
+{"question": "How does GE Aerospace describe engine-supply and aerospace-OEM risks?", "symbol": "GE", "as_of_date": "2025-12-01", "expected_substring": "10K-GE-"}
+{"question": "What logistics and AWS-customer-concentration risks does Amazon disclose?", "symbol": "AMZN", "as_of_date": "2025-12-01", "expected_substring": "10K-AMZN-"}
+{"question": "How does Walmart describe inflation and supply-chain inflation risks?", "symbol": "WMT", "as_of_date": "2025-12-01", "expected_substring": "10K-WMT-"}
+{"question": "What commodity-input and currency risks does Coca-Cola disclose?", "symbol": "KO", "as_of_date": "2025-12-01", "expected_substring": "10K-KO-"}
+{"question": "How does Nike describe sourcing-country concentration in its 10-K?", "symbol": "NKE", "as_of_date": "2025-12-01", "expected_substring": "10K-NKE-"}
