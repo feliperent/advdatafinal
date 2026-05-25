@@ -1,7 +1,7 @@
 ## Databricks Job (workflow)
-## Chains: DLT pipeline (01_data_pipeline.sql)  ->  notebook task (02_ml_pipeline.py)
+## Chains: DLT pipeline (pipelinedatos.sql)  ->  notebook task (02_ml_pipeline.py)
 ##
-## IMPORTANT: 01_data_pipeline.sql uses DLT syntax (CREATE STREAMING TABLE,
+## IMPORTANT: pipelinedatos.sql uses DLT syntax (CREATE STREAMING TABLE,
 ## APPLY CHANGES INTO, CREATE MATERIALIZED VIEW). These run in a DLT PIPELINE,
 ## not in a regular Job notebook_task. So the Job below has two task types:
 ##
@@ -43,7 +43,7 @@ resources:
         # git_tag: v1.0
 
       tasks:
-        # Task 1: DLT pipeline (runs the 01_data_pipeline.sql DLT notebook)
+        # Task 1: DLT pipeline (runs the pipelinedatos.sql DLT notebook)
         - task_key: data_pipeline
           description: Medallion DLT pipeline | raw -> datos_masked -> silver -> gold dims
           pipeline_task:
