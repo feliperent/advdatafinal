@@ -1,0 +1,56 @@
+[project]
+name = "advdatafinal"
+version = "0.1.0"
+description = "IN014 Advanced Data Processing - Stock direction prediction with RAG"
+requires-python = ">=3.11"
+dependencies = [
+    # Data ingestion
+    "yfinance>=0.2.40",
+    "edgartools>=2.0.0",
+    "requests>=2.31",
+    # Postgres + dbt
+    "psycopg2-binary>=2.9",
+    "sqlalchemy>=2.0",
+    "dbt-postgres>=1.7",
+    # Storage helpers
+    "duckdb>=1.0",
+    "pyarrow>=15.0",
+    "pandas>=2.1",
+    "numpy>=1.26",
+    # ML
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+    "pmdarima>=2.0",
+    "shap>=0.45",
+    "mlflow>=2.10",
+    # NLP
+    "sentence-transformers>=2.5",
+    "transformers>=4.40",
+    "torch>=2.2",
+    "tiktoken>=0.6",
+    # APIs
+    "anthropic>=0.25",
+    "alpaca-py>=0.20",
+    # UI
+    "streamlit>=1.32",
+    "plotly>=5.20",
+    "matplotlib>=3.8",
+    # Misc
+    "python-dotenv>=1.0",
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
