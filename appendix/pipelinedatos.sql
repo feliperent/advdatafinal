@@ -320,9 +320,9 @@ FROM present p
 JOIN labels l ON l.code = p.code
 WHERE p.n > 0;
 
--- gold.fct_feature_panel_daily (the 20-feature ML training table)
--- One row per (symbol, trade_date). Asof-joins fundamentals to the latest filing on or before the date.
--- 5-day forward log return + binary up label are joined back via LEAD windows.
+-- gold.fct_feature_panel_daily (the 15-feature ML training table)
+-- One row per (symbol, trade_date). Joins prices_features with the most recent fundamentals
+-- filing on or before the trade date (window-based asof join, no correlated subquery).
 CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.fct_feature_panel_daily AS
 WITH price_with_target AS (
     SELECT
@@ -330,33 +330,32 @@ WITH price_with_target AS (
         LEAD(close_px, 5) OVER (PARTITION BY symbol ORDER BY trade_date) AS close_px_t5
     FROM advdatafinal.silver.silver_prices_features p
 ),
-fundamentals_asof AS (
+joined AS (
     SELECT
-        pf.price_key, pf.symbol, pf.trade_date,
+        p.*,
+        f.filing_date,
         f.roe, f.roa, f.debt_eq, f.gross_margin, f.op_margin, f.asset_turnover,
-        f.revenue_ttm, f.net_income_ttm, f.ebitda_ttm, f.free_cash_flow_ttm,
-        f.total_assets, f.total_equity, f.total_debt
-    FROM advdatafinal.silver.silver_prices_features pf
+        ROW_NUMBER() OVER (
+            PARTITION BY p.symbol, p.trade_date
+            ORDER BY f.filing_date DESC NULLS LAST
+        ) AS rn
+    FROM price_with_target p
     LEFT JOIN advdatafinal.silver.silver_fundamentals_cleaned f
-        ON pf.symbol = f.symbol
-        AND f.filing_date = (
-            SELECT MAX(filing_date)
-            FROM advdatafinal.silver.silver_fundamentals_cleaned f2
-            WHERE f2.symbol = pf.symbol AND f2.filing_date <= pf.trade_date
-        )
+        ON p.symbol = f.symbol
+        AND f.filing_date <= p.trade_date
 )
 SELECT
-    p.price_key,
-    p.date_key,
-    p.company_key,
-    p.symbol,
-    p.trade_date,
-    p.log_ret_1d, p.sma_5, p.sma_20, p.sma_50, p.ema_12, p.ema_26,
-    p.macd_hist, p.bb_z, p.vol_20d,
-    fa.roe, fa.roa, fa.debt_eq, fa.gross_margin, fa.op_margin, fa.asset_turnover,
-    CASE WHEN p.close_px_t5 IS NOT NULL AND p.close_px > 0
-         THEN LN(p.close_px_t5 / p.close_px) END AS y_5d_logret,
-    CASE WHEN p.close_px_t5 IS NOT NULL AND p.close_px > 0
-         THEN CASE WHEN p.close_px_t5 > p.close_px THEN 1 ELSE 0 END END AS y_5d_up
-FROM price_with_target p
-LEFT JOIN fundamentals_asof fa USING (price_key);
+    price_key,
+    date_key,
+    company_key,
+    symbol,
+    trade_date,
+    log_ret_1d, sma_5, sma_20, sma_50, ema_12, ema_26,
+    macd_hist, bb_z, vol_20d,
+    roe, roa, debt_eq, gross_margin, op_margin, asset_turnover,
+    CASE WHEN close_px_t5 IS NOT NULL AND close_px > 0
+         THEN LN(close_px_t5 / close_px) END AS y_5d_logret,
+    CASE WHEN close_px_t5 IS NOT NULL AND close_px > 0
+         THEN CASE WHEN close_px_t5 > close_px THEN 1 ELSE 0 END END AS y_5d_up
+FROM joined
+WHERE rn = 1;
