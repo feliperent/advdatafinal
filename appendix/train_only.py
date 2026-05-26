@@ -63,8 +63,10 @@ for fold in folds():
     train = panel[(panel["trade_date"] >= fold.train_start) & (panel["trade_date"] <= fold.train_end)]
     test  = panel[(panel["trade_date"] >= fold.test_start)  & (panel["trade_date"] <= fold.test_end)]
     if train.empty or test.empty: continue
-    Xtr, ytr = train[STRUCTURED_FEATURES].fillna(0), train["y_5d_up"]
-    Xte, yte = test[STRUCTURED_FEATURES].fillna(0),  test["y_5d_up"]
+    Xtr = train[STRUCTURED_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    ytr = train["y_5d_up"].astype(int)
+    Xte = test[STRUCTURED_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    yte = test["y_5d_up"].astype(int)
     clf = xgb.XGBClassifier(**HP).fit(Xtr, ytr, eval_set=[(Xte, yte)], verbose=False)
     p = clf.predict_proba(Xte)[:, 1]
     for i, (_, r) in enumerate(test.iterrows()):
@@ -77,8 +79,10 @@ for fold in folds():
     train = panel[(panel["trade_date"] >= fold.train_start) & (panel["trade_date"] <= fold.train_end)]
     test  = panel[(panel["trade_date"] >= fold.test_start)  & (panel["trade_date"] <= fold.test_end)]
     if train.empty or test.empty: continue
-    Xtr, ytr = train[FULL_FEATURES].fillna(0), train["y_5d_up"]
-    Xte, yte = test[FULL_FEATURES].fillna(0),  test["y_5d_up"]
+    Xtr = train[FULL_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    ytr = train["y_5d_up"].astype(int)
+    Xte = test[FULL_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    yte = test["y_5d_up"].astype(int)
     clf = xgb.XGBClassifier(**HP).fit(Xtr, ytr, eval_set=[(Xte, yte)], verbose=False)
     p = clf.predict_proba(Xte)[:, 1]
     for i, (_, r) in enumerate(test.iterrows()):
