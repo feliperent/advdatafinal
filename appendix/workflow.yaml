@@ -16,7 +16,7 @@ resources:
         - task_key: data_pipeline
           description: DLT pipeline | raw / datos_masked / silver / gold.dim_*
           pipeline_task:
-            pipeline_id: <PASTE_DLT_PIPELINE_ID_HERE>
+            pipeline_id: a6365b9a-54c9-454b-aed9-d529739b31db
             full_refresh: false
           timeout_seconds: 1800
 
