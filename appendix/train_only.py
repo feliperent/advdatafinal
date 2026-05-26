@@ -64,8 +64,8 @@ HP = dict(n_estimators=300, max_depth=5, learning_rate=0.05,
 # Rung 1 | 15 structured features
 preds_rung1 = []
 for fold in folds():
-    train = panel[(panel["trade_date"] >= fold.train_start) & (panel["trade_date"] <= fold.train_end)]
-    test  = panel[(panel["trade_date"] >= fold.test_start)  & (panel["trade_date"] <= fold.test_end)]
+    train = panel[(panel["trade_date"] >= pd.Timestamp(fold.train_start)) & (panel["trade_date"] <= pd.Timestamp(fold.train_end))]
+    test  = panel[(panel["trade_date"] >= pd.Timestamp(fold.test_start))  & (panel["trade_date"] <= pd.Timestamp(fold.test_end))]
     if train.empty or test.empty: continue
     Xtr = train[STRUCTURED_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
     ytr = train["y_5d_up"].astype(int)
@@ -80,8 +80,8 @@ print(f"Rung 1 done: {len(preds_rung1)} preds")
 # Rung 2 | 24 features (15 + 4 sentiment + 5 PCA)
 preds_rung2 = []
 for fold in folds():
-    train = panel[(panel["trade_date"] >= fold.train_start) & (panel["trade_date"] <= fold.train_end)]
-    test  = panel[(panel["trade_date"] >= fold.test_start)  & (panel["trade_date"] <= fold.test_end)]
+    train = panel[(panel["trade_date"] >= pd.Timestamp(fold.train_start)) & (panel["trade_date"] <= pd.Timestamp(fold.train_end))]
+    test  = panel[(panel["trade_date"] >= pd.Timestamp(fold.test_start))  & (panel["trade_date"] <= pd.Timestamp(fold.test_end))]
     if train.empty or test.empty: continue
     Xtr = train[FULL_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
     ytr = train["y_5d_up"].astype(int)
