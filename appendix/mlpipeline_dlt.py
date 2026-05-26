@@ -9,6 +9,14 @@
 
 import dlt
 import pyspark.sql.functions as F
+import pyspark.sql.types as T
+
+SCORED_SCHEMA = T.StructType([
+    T.StructField("symbol",        T.StringType()),
+    T.StructField("published_at",  T.StringType()),
+    T.StructField("title",         T.StringType()),
+    T.StructField("finbert_score", T.DoubleType()),
+])
 
 # COMMAND ----------
 
@@ -33,8 +41,10 @@ def _finbert_score(texts):
            comment="FinBERT-tone score per news article (P(positive) - P(negative))")
 def silver_news_scored():
     pdf = dlt.read("datos_masked.news_redacted").toPandas()
-    pdf["finbert_score"] = _finbert_score(pdf["body_masked"].fillna("").tolist()) if len(pdf) else []
-    return spark.createDataFrame(pdf[["symbol", "published_at", "title", "finbert_score"]])
+    if not len(pdf):
+        return spark.createDataFrame([], SCORED_SCHEMA)
+    pdf["finbert_score"] = _finbert_score(pdf["body_masked"].fillna("").tolist())
+    return spark.createDataFrame(pdf[["symbol", "published_at", "title", "finbert_score"]], schema=SCORED_SCHEMA)
 
 # COMMAND ----------
 
@@ -43,8 +53,10 @@ def silver_news_scored():
            comment="FinBERT-tone score per press release")
 def silver_press_scored():
     pdf = dlt.read("datos_masked.press_redacted").toPandas()
-    pdf["finbert_score"] = _finbert_score(pdf["body_masked"].fillna("").tolist()) if len(pdf) else []
-    return spark.createDataFrame(pdf[["symbol", "published_at", "title", "finbert_score"]])
+    if not len(pdf):
+        return spark.createDataFrame([], SCORED_SCHEMA)
+    pdf["finbert_score"] = _finbert_score(pdf["body_masked"].fillna("").tolist())
+    return spark.createDataFrame(pdf[["symbol", "published_at", "title", "finbert_score"]], schema=SCORED_SCHEMA)
 
 # COMMAND ----------
 
