@@ -109,9 +109,10 @@ print(f"gold.fct_predictions: {len(all_preds)} rows")
 
 # gold.fct_backtest_pnl_daily (top-5 long, weekly rebalance, 5 bp tx cost)
 def backtest(preds_df, panel_df, top_n=5, tc_bp=5):
+    preds_df = preds_df.copy()
+    preds_df["trade_date"] = pd.to_datetime(preds_df["trade_date"])
     df = preds_df.merge(panel_df[["trade_date","company_key","symbol","y_5d_logret"]],
                         on=["trade_date","company_key"], how="left").dropna(subset=["y_5d_logret"])
-    df["trade_date"] = pd.to_datetime(df["trade_date"])
     rows = []
     for rung in sorted(df["model_rung"].unique()):
         r = df[df["model_rung"] == rung].sort_values("trade_date")
