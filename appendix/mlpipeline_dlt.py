@@ -24,8 +24,8 @@ import torch
 
 _tok = AutoTokenizer.from_pretrained("yiyanghkust/finbert-tone")
 _mdl = AutoModelForSequenceClassification.from_pretrained("yiyanghkust/finbert-tone").eval()
-BC_TOK = sc.broadcast(_tok)
-BC_MDL = sc.broadcast(_mdl)
+BC_TOK = spark.sparkContext.broadcast(_tok)
+BC_MDL = spark.sparkContext.broadcast(_mdl)
 
 @pandas_udf(T.DoubleType())
 def finbert_udf(texts: pd.Series) -> pd.Series:
