@@ -210,7 +210,9 @@ panel = (spark.table("advdatafinal.gold.fct_feature_panel_daily_full")
          .filter("y_5d_up IS NOT NULL")
          .orderBy("symbol", "trade_date")
          .toPandas())
-print(f"Panel: {len(panel)} rows, {panel['symbol'].nunique()} stocks, up_rate {panel['y_5d_up'].mean():.3f}")
+panel["trade_date"] = pd.to_datetime(panel["trade_date"])
+print(f"Panel: {len(panel)} rows, {panel['symbol'].nunique()} stocks, "
+      f"up_rate {panel['y_5d_up'].mean():.3f}")
 
 # COMMAND ----------
 
@@ -256,11 +258,13 @@ HP = dict(n_estimators=300, max_depth=5, learning_rate=0.05,
 
 preds_rung1 = []
 for fold in folds():
-    train = panel[(panel["trade_date"] >= fold.train_start) & (panel["trade_date"] <= fold.train_end)]
-    test  = panel[(panel["trade_date"] >= fold.test_start)  & (panel["trade_date"] <= fold.test_end)]
+    train = panel[(panel["trade_date"] >= pd.Timestamp(fold.train_start)) & (panel["trade_date"] <= pd.Timestamp(fold.train_end))]
+    test  = panel[(panel["trade_date"] >= pd.Timestamp(fold.test_start))  & (panel["trade_date"] <= pd.Timestamp(fold.test_end))]
     if train.empty or test.empty: continue
-    Xtr, ytr = train[STRUCTURED_FEATURES].fillna(0), train["y_5d_up"]
-    Xte, yte = test[STRUCTURED_FEATURES].fillna(0),  test["y_5d_up"]
+    Xtr = train[STRUCTURED_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    ytr = train["y_5d_up"].astype(int)
+    Xte = test[STRUCTURED_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    yte = test["y_5d_up"].astype(int)
     clf = xgb.XGBClassifier(**HP)
     clf.fit(Xtr, ytr, eval_set=[(Xte, yte)], verbose=False)
     p = clf.predict_proba(Xte)[:, 1]
@@ -284,11 +288,13 @@ FULL_FEATURES = STRUCTURED_FEATURES + TEXT_FEATURES
 
 preds_rung2 = []
 for fold in folds():
-    train = panel[(panel["trade_date"] >= fold.train_start) & (panel["trade_date"] <= fold.train_end)]
-    test  = panel[(panel["trade_date"] >= fold.test_start)  & (panel["trade_date"] <= fold.test_end)]
+    train = panel[(panel["trade_date"] >= pd.Timestamp(fold.train_start)) & (panel["trade_date"] <= pd.Timestamp(fold.train_end))]
+    test  = panel[(panel["trade_date"] >= pd.Timestamp(fold.test_start))  & (panel["trade_date"] <= pd.Timestamp(fold.test_end))]
     if train.empty or test.empty: continue
-    Xtr, ytr = train[FULL_FEATURES].fillna(0), train["y_5d_up"]
-    Xte, yte = test[FULL_FEATURES].fillna(0),  test["y_5d_up"]
+    Xtr = train[FULL_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    ytr = train["y_5d_up"].astype(int)
+    Xte = test[FULL_FEATURES].apply(pd.to_numeric, errors="coerce").fillna(0)
+    yte = test["y_5d_up"].astype(int)
     clf = xgb.XGBClassifier(**HP)
     clf.fit(Xtr, ytr, eval_set=[(Xte, yte)], verbose=False)
     p = clf.predict_proba(Xte)[:, 1]
@@ -319,9 +325,10 @@ print(f"gold.fct_predictions: {len(all_preds)} rows")
 
 # gold.fct_backtest_pnl_daily (top-5 long, weekly rebalance, 5 bp tx cost)
 def backtest(preds_df, panel_df, top_n=5, tc_bp=5):
+    preds_df = preds_df.copy()
+    preds_df["trade_date"] = pd.to_datetime(preds_df["trade_date"])
     df = preds_df.merge(panel_df[["trade_date","company_key","symbol","y_5d_logret"]],
                         on=["trade_date","company_key"], how="left").dropna(subset=["y_5d_logret"])
-    df["trade_date"] = pd.to_datetime(df["trade_date"])
     rows = []
     for rung in sorted(df["model_rung"].unique()):
         r = df[df["model_rung"] == rung].sort_values("trade_date")

@@ -21,18 +21,19 @@ resources:
           timeout_seconds: 1800
 
         - task_key: ml_pipeline
-          description: FinBERT + MiniLM + PCA + 3 rungs + backtest
+          description: FinBERT scoring + MiniLM chunking + PCA + 2 XGBoost rungs + backtest
           notebook_task:
-            notebook_path: appendix/mlpipeline.py
-            source: GIT
-          timeout_seconds: 3600
+            notebook_path: /Workspace/Repos/lfrenteria33@gmail.com/advdatafinal/appendix/mlpipeline
+          # MiniLM embedding of 14k chunks on serverless CPU takes ~45 min; FinBERT + train + backtest add another ~10 min.
+          timeout_seconds: 5400
           depends_on:
             - task_key: data_pipeline
-          new_cluster:
-            spark_version: 14.3.x-cpu-ml-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 0
-            data_security_mode: SINGLE_USER
+          environment_key: serverless_env
+
+      environments:
+        - environment_key: serverless_env
+          spec:
+            client: "2"
 
       schedule:
         pause_status: PAUSED
