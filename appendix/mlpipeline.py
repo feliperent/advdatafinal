@@ -2,37 +2,108 @@
 
 # COMMAND ----------
 
-# This notebook runs as Job task 2, AFTER the DLT pipeline finishes.
-# DLT (pipelinedatos.sql + mlpipeline_dlt.py) builds everything derivable from raw:
-#   raw -> silver -> gold.dim_* + gold.fct_sentiment_per_day + gold.fct_feature_panel_daily_full
-# This notebook does the only two things DLT cannot:
-#   - XGBoost training (weights come from a fit, not from a deterministic read)
-#   - Walk-forward backtest (depends on those trained predictions)
-# It writes gold.fct_predictions and gold.fct_backtest_pnl_daily as plain Delta tables.
+# MAGIC %pip install -q transformers==4.43.0 torch==2.3.1 xgboost==2.0.3
 
 # COMMAND ----------
 
-# MAGIC %pip install -q xgboost==2.0.3
-
-# COMMAND ----------
+# Runs as Job task 2, AFTER the DLT pipeline finishes.
+# The DLT pipeline (pipelinedatos.sql) gives us:
+#   raw -> silver -> gold.dim_* + gold.fct_feature_panel_daily (15 features, no text)
+# This notebook adds:
+#   - FinBERT scoring -> silver.silver_news_scored / silver_press_scored
+#   - Aggregation     -> gold.fct_sentiment_per_day
+#   - Joined panel    -> gold.fct_feature_panel_daily_full (15 + 4 sentiment)
+#   - XGBoost rungs   -> gold.fct_predictions
+#   - Backtest        -> gold.fct_backtest_pnl_daily
 
 import mlflow
 mlflow.set_experiment("/advdatafinal")
 
 # COMMAND ----------
 
-import pandas as pd
-panel = (
-    spark.table("advdatafinal.gold.fct_feature_panel_daily_full")
-    .filter("y_5d_up IS NOT NULL")
-    .orderBy("symbol", "trade_date")
-    .toPandas()
+# FinBERT on news and press (cached at module level so the model loads once per worker process)
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch, pandas as pd
+
+_MODEL_CACHE = {}
+def _finbert_score(texts):
+    if "tok" not in _MODEL_CACHE:
+        _MODEL_CACHE["tok"] = AutoTokenizer.from_pretrained("yiyanghkust/finbert-tone")
+        _MODEL_CACHE["mdl"] = AutoModelForSequenceClassification.from_pretrained("yiyanghkust/finbert-tone").eval()
+    tok, mdl = _MODEL_CACHE["tok"], _MODEL_CACHE["mdl"]
+    out, B = [], 16
+    for i in range(0, len(texts), B):
+        enc = tok(texts[i:i+B], padding=True, truncation=True, max_length=512, return_tensors="pt")
+        with torch.no_grad():
+            probs = torch.softmax(mdl(**enc).logits, dim=-1).numpy()
+        # Label order: 0=Neutral, 1=Positive, 2=Negative -> P(pos) - P(neg)
+        out.extend((probs[:, 1] - probs[:, 2]).tolist())
+    return out
+
+# COMMAND ----------
+
+# silver.silver_news_scored
+news_df = spark.table("advdatafinal.datos_masked.news_redacted").toPandas()
+news_df["finbert_score"] = _finbert_score(news_df["body_masked"].fillna("").tolist())
+(spark.createDataFrame(news_df[["symbol","published_at","title","finbert_score"]])
+    .write.mode("overwrite").saveAsTable("advdatafinal.silver.silver_news_scored"))
+print(f"silver.silver_news_scored: {len(news_df)} rows")
+
+# COMMAND ----------
+
+# silver.silver_press_scored
+press_df = spark.table("advdatafinal.datos_masked.press_redacted").toPandas()
+press_df["finbert_score"] = _finbert_score(press_df["body_masked"].fillna("").tolist())
+(spark.createDataFrame(press_df[["symbol","published_at","title","finbert_score"]])
+    .write.mode("overwrite").saveAsTable("advdatafinal.silver.silver_press_scored"))
+print(f"silver.silver_press_scored: {len(press_df)} rows")
+
+# COMMAND ----------
+
+# gold.fct_sentiment_per_day (per-symbol per-day mean of FinBERT + article counts)
+spark.sql("""
+CREATE OR REPLACE TABLE advdatafinal.gold.fct_sentiment_per_day AS
+WITH news_daily AS (
+    SELECT symbol, date(published_at) as trade_date,
+           AVG(finbert_score) as news_score, COUNT(*) as n_news
+    FROM advdatafinal.silver.silver_news_scored
+    GROUP BY symbol, date(published_at)
+),
+press_daily AS (
+    SELECT symbol, date(published_at) as trade_date,
+           AVG(finbert_score) as press_score, COUNT(*) as n_press
+    FROM advdatafinal.silver.silver_press_scored
+    GROUP BY symbol, date(published_at)
 )
+SELECT
+    coalesce(n.symbol, p.symbol) as symbol,
+    coalesce(n.trade_date, p.trade_date) as trade_date,
+    n.news_score, n.n_news, p.press_score, p.n_press
+FROM news_daily n
+FULL OUTER JOIN press_daily p USING (symbol, trade_date)
+""")
+print("gold.fct_sentiment_per_day written")
+
+# COMMAND ----------
+
+# gold.fct_feature_panel_daily_full (15 features + 4 sentiment)
+spark.sql("""
+CREATE OR REPLACE TABLE advdatafinal.gold.fct_feature_panel_daily_full AS
+SELECT
+    p.*,
+    s.news_score, s.n_news, s.press_score, s.n_press
+FROM advdatafinal.gold.fct_feature_panel_daily p
+LEFT JOIN advdatafinal.gold.fct_sentiment_per_day s USING (symbol, trade_date)
+""")
+panel = (spark.table("advdatafinal.gold.fct_feature_panel_daily_full")
+         .filter("y_5d_up IS NOT NULL")
+         .orderBy("symbol", "trade_date")
+         .toPandas())
 print(f"Panel: {len(panel)} rows, {panel['symbol'].nunique()} stocks, up_rate {panel['y_5d_up'].mean():.3f}")
 
 # COMMAND ----------
 
-# Walk-forward fold generator (3y train / 5d gap / 63d test, advancing weekly)
+# Walk-forward fold generator (3y train / 5d gap / 63d test, weekly advance)
 from datetime import date, timedelta
 from dataclasses import dataclass
 
@@ -116,7 +187,7 @@ for fold in folds():
 
 # COMMAND ----------
 
-# Write predictions to gold.fct_predictions
+# gold.fct_predictions
 all_preds = pd.DataFrame(
     preds_rung1 + preds_rung2,
     columns=["trade_date","company_key","model_rung","fold_id","prob_up","predicted_class"],
@@ -124,11 +195,11 @@ all_preds = pd.DataFrame(
 (spark.createDataFrame(all_preds)
     .write.mode("overwrite")
     .saveAsTable("advdatafinal.gold.fct_predictions"))
-print(f"Wrote {len(all_preds)} rows to advdatafinal.gold.fct_predictions")
+print(f"gold.fct_predictions: {len(all_preds)} rows")
 
 # COMMAND ----------
 
-# Walk-forward backtest (top-5 long, weekly rebalance, 5 bp tx cost)
+# gold.fct_backtest_pnl_daily (top-5 long, weekly rebalance, 5 bp tx cost)
 def backtest(preds_df, panel_df, top_n=5, tc_bp=5):
     df = preds_df.merge(panel_df[["trade_date","company_key","symbol","y_5d_logret"]],
                         on=["trade_date","company_key"], how="left").dropna(subset=["y_5d_logret"])
@@ -153,4 +224,4 @@ bt = backtest(all_preds, panel_for_bt)
 (spark.createDataFrame(bt)
     .write.mode("overwrite")
     .saveAsTable("advdatafinal.gold.fct_backtest_pnl_daily"))
-print(f"Wrote {len(bt)} rows to advdatafinal.gold.fct_backtest_pnl_daily")
+print(f"gold.fct_backtest_pnl_daily: {len(bt)} rows")
