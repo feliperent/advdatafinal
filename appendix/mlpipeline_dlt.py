@@ -40,7 +40,7 @@ def _finbert_score(texts):
 @dlt.table(name="silver.silver_news_scored",
            comment="FinBERT-tone score per news article (P(positive) - P(negative))")
 def silver_news_scored():
-    pdf = dlt.read("datos_masked.news_redacted").toPandas()
+    pdf = spark.read.table("advdatafinal.datos_masked.news_redacted").toPandas()
     if not len(pdf):
         return spark.createDataFrame([], SCORED_SCHEMA)
     pdf["finbert_score"] = _finbert_score(pdf["body_masked"].fillna("").tolist())
@@ -52,7 +52,7 @@ def silver_news_scored():
 @dlt.table(name="silver.silver_press_scored",
            comment="FinBERT-tone score per press release")
 def silver_press_scored():
-    pdf = dlt.read("datos_masked.press_redacted").toPandas()
+    pdf = spark.read.table("advdatafinal.datos_masked.press_redacted").toPandas()
     if not len(pdf):
         return spark.createDataFrame([], SCORED_SCHEMA)
     pdf["finbert_score"] = _finbert_score(pdf["body_masked"].fillna("").tolist())
@@ -65,14 +65,14 @@ def silver_press_scored():
            comment="Per-day mean FinBERT score and article count for news and press")
 def fct_sentiment_per_day():
     news = (
-        dlt.read("silver.silver_news_scored")
+        spark.read.table("advdatafinal.silver.silver_news_scored")
         .withColumn("trade_date", F.to_date("published_at"))
         .groupBy("symbol", "trade_date")
         .agg(F.avg("finbert_score").alias("news_score"),
              F.count(F.lit(1)).alias("n_news"))
     )
     press = (
-        dlt.read("silver.silver_press_scored")
+        spark.read.table("advdatafinal.silver.silver_press_scored")
         .withColumn("trade_date", F.to_date("published_at"))
         .groupBy("symbol", "trade_date")
         .agg(F.avg("finbert_score").alias("press_score"),
@@ -92,9 +92,9 @@ def fct_sentiment_per_day():
 @dlt.table(name="gold.fct_feature_panel_daily_full",
            comment="ML training table: 15 price+fundamental + 4 sentiment features")
 def fct_feature_panel_daily_full():
-    panel = dlt.read("gold.fct_feature_panel_daily")
+    panel = spark.read.table("advdatafinal.gold.fct_feature_panel_daily")
     sent  = (
-        dlt.read("gold.fct_sentiment_per_day")
+        spark.read.table("advdatafinal.gold.fct_sentiment_per_day")
         .select("symbol", "trade_date", "news_score", "n_news", "press_score", "n_press")
     )
     return panel.join(sent, ["symbol", "trade_date"], "left")

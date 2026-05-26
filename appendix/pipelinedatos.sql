@@ -129,7 +129,11 @@ FROM STREAM(advdatafinal.raw.prices_raw)
 WHERE close IS NOT NULL AND close <> '';
 
 -- silver.silver_prices_cleaned (SCD-1 idempotent typed prices)
-CREATE OR REFRESH STREAMING TABLE advdatafinal.silver.silver_prices_cleaned;
+CREATE OR REFRESH STREAMING TABLE advdatafinal.silver.silver_prices_cleaned (
+    CONSTRAINT valid_symbol_present   EXPECT (symbol IS NOT NULL)                                  ON VIOLATION DROP ROW,
+    CONSTRAINT valid_close_px_positive EXPECT (close_px > 0)                                        ON VIOLATION DROP ROW,
+    CONSTRAINT valid_date_in_range    EXPECT (trade_date BETWEEN DATE '2020-01-01' AND DATE '2026-12-31') ON VIOLATION DROP ROW
+);
 
 APPLY CHANGES INTO advdatafinal.silver.silver_prices_cleaned
   FROM STREAM(prices_typed)
@@ -175,7 +179,11 @@ SELECT
 FROM features;
 
 -- silver.silver_fundamentals_cleaned (joins 3 raw statements + 4-quarter TTM rollups)
-CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.silver.silver_fundamentals_cleaned AS
+CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.silver.silver_fundamentals_cleaned (
+    CONSTRAINT valid_symbol_present  EXPECT (symbol IS NOT NULL)  ON VIOLATION DROP ROW,
+    CONSTRAINT valid_revenue_present EXPECT (revenue_ttm > 0)     ON VIOLATION DROP ROW
+)
+AS
 WITH inc AS (
     SELECT
         symbol, cast(date as DATE) as filing_date,
@@ -259,7 +267,11 @@ FROM (
 );
 
 -- gold.dim_company (joined from silver_prices_cleaned + a 20-row sector mapping)
-CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_company AS
+CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_company (
+    CONSTRAINT valid_symbol_present EXPECT (symbol IS NOT NULL) ON VIOLATION FAIL UPDATE,
+    CONSTRAINT valid_sector_present EXPECT (sector_name IS NOT NULL) ON VIOLATION FAIL UPDATE
+)
+AS
 WITH symbols AS (
     SELECT DISTINCT symbol FROM advdatafinal.silver.silver_prices_cleaned
 ),
@@ -323,7 +335,11 @@ WHERE p.n > 0;
 -- gold.fct_feature_panel_daily (the 15-feature ML training table)
 -- One row per (symbol, trade_date). Joins prices_features with the most recent fundamentals
 -- filing on or before the trade date (window-based asof join, no correlated subquery).
-CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.fct_feature_panel_daily AS
+CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.fct_feature_panel_daily (
+    CONSTRAINT valid_symbol_present EXPECT (symbol IS NOT NULL)        ON VIOLATION DROP ROW,
+    CONSTRAINT valid_date_present   EXPECT (trade_date IS NOT NULL)    ON VIOLATION DROP ROW
+)
+AS
 WITH price_with_target AS (
     SELECT
         p.*,
