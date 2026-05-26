@@ -20,7 +20,10 @@
 #   - Backtest                 -> gold.fct_backtest_pnl_daily
 
 import mlflow
-mlflow.set_experiment("/advdatafinal")
+try:
+    mlflow.set_experiment("/Users/lfrenteria33@gmail.com/advdatafinal")
+except Exception as e:
+    print(f"MLflow experiment setup skipped on this runtime: {e}")
 
 # COMMAND ----------
 
@@ -261,11 +264,14 @@ for fold in folds():
     clf = xgb.XGBClassifier(**HP)
     clf.fit(Xtr, ytr, eval_set=[(Xte, yte)], verbose=False)
     p = clf.predict_proba(Xte)[:, 1]
-    with mlflow.start_run(run_name=f"rung1_{fold.fold_id}"):
-        mlflow.log_param("rung", 1); mlflow.log_param("fold_id", fold.fold_id)
-        mlflow.log_param("n_features", len(STRUCTURED_FEATURES))
-        mlflow.log_metric("test_auc", float(roc_auc_score(yte, p)))
-        mlflow.log_metric("accuracy", float(accuracy_score(yte, (p > 0.5).astype(int))))
+    try:
+        with mlflow.start_run(run_name=f"rung1_{fold.fold_id}"):
+            mlflow.log_param("rung", 1); mlflow.log_param("fold_id", fold.fold_id)
+            mlflow.log_param("n_features", len(STRUCTURED_FEATURES))
+            mlflow.log_metric("test_auc", float(roc_auc_score(yte, p)))
+            mlflow.log_metric("accuracy", float(accuracy_score(yte, (p > 0.5).astype(int))))
+    except Exception:
+        pass  # MLflow may not be available on every runtime
     for i, (_, r) in enumerate(test.iterrows()):
         preds_rung1.append((str(r["trade_date"]), r["company_key"], 1, fold.fold_id, float(p[i]), int(p[i] > 0.5)))
 
@@ -286,11 +292,14 @@ for fold in folds():
     clf = xgb.XGBClassifier(**HP)
     clf.fit(Xtr, ytr, eval_set=[(Xte, yte)], verbose=False)
     p = clf.predict_proba(Xte)[:, 1]
-    with mlflow.start_run(run_name=f"rung2_{fold.fold_id}"):
-        mlflow.log_param("rung", 2); mlflow.log_param("fold_id", fold.fold_id)
-        mlflow.log_param("n_features", len(FULL_FEATURES))
-        mlflow.log_metric("test_auc", float(roc_auc_score(yte, p)))
-        mlflow.log_metric("accuracy", float(accuracy_score(yte, (p > 0.5).astype(int))))
+    try:
+        with mlflow.start_run(run_name=f"rung2_{fold.fold_id}"):
+            mlflow.log_param("rung", 2); mlflow.log_param("fold_id", fold.fold_id)
+            mlflow.log_param("n_features", len(FULL_FEATURES))
+            mlflow.log_metric("test_auc", float(roc_auc_score(yte, p)))
+            mlflow.log_metric("accuracy", float(accuracy_score(yte, (p > 0.5).astype(int))))
+    except Exception:
+        pass  # MLflow may not be available on every runtime
     for i, (_, r) in enumerate(test.iterrows()):
         preds_rung2.append((str(r["trade_date"]), r["company_key"], 2, fold.fold_id, float(p[i]), int(p[i] > 0.5)))
 
