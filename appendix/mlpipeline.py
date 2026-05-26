@@ -2,7 +2,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q transformers==4.43.0 torch==2.3.1 xgboost==2.0.3
+# MAGIC %pip install -q transformers==4.43.0 torch==2.3.1 xgboost==2.0.3 sentence-transformers==3.0.1 tiktoken==0.7.0
 
 # COMMAND ----------
 
@@ -10,11 +10,14 @@
 # The DLT pipeline (pipelinedatos.sql) gives us:
 #   raw -> silver -> gold.dim_* + gold.fct_feature_panel_daily (15 features, no text)
 # This notebook adds:
-#   - FinBERT scoring -> silver.silver_news_scored / silver_press_scored
-#   - Aggregation     -> gold.fct_sentiment_per_day
-#   - Joined panel    -> gold.fct_feature_panel_daily_full (15 + 4 sentiment)
-#   - XGBoost rungs   -> gold.fct_predictions
-#   - Backtest        -> gold.fct_backtest_pnl_daily
+#   - FinBERT scoring          -> silver.silver_news_scored / silver_press_scored
+#   - Sentiment aggregation    -> gold.fct_sentiment_per_day
+#   - 10-K and 8-K chunking + MiniLM embeddings -> silver.silver_filings_*_chunked
+#   - UNION                    -> gold.dim_chunk
+#   - PCA on 10-K embeddings   -> gold.fct_embedding_per_company
+#   - Joined panel             -> gold.fct_feature_panel_daily_full (15 + 4 sentiment + 5 PCA)
+#   - XGBoost rungs            -> gold.fct_predictions
+#   - Backtest                 -> gold.fct_backtest_pnl_daily
 
 import mlflow
 mlflow.set_experiment("/advdatafinal")
@@ -60,6 +63,100 @@ print(f"silver.silver_press_scored: {len(press_df)} rows")
 
 # COMMAND ----------
 
+# silver.silver_filings_10k_chunked + silver.silver_filings_8k_chunked
+# 500-token chunks with 50-token overlap, MiniLM-L6-v2 embeddings (384 dim).
+import tiktoken, hashlib
+from sentence_transformers import SentenceTransformer
+
+ENC = tiktoken.get_encoding("cl100k_base")
+CHUNK_TOKENS, OVERLAP_TOKENS = 500, 50
+
+def chunk_text(text):
+    if not text or not text.strip(): return []
+    tokens = ENC.encode(text)
+    step = CHUNK_TOKENS - OVERLAP_TOKENS
+    out = []
+    for i in range(0, len(tokens), step):
+        sl = tokens[i:i+CHUNK_TOKENS]
+        if len(sl) < 50: break
+        out.append(ENC.decode(sl))
+    return out
+
+_MINILM = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+def chunk_and_embed(source_view, source_code):
+    df = spark.table(source_view).toPandas()
+    rows = []
+    for _, r in df.iterrows():
+        chunks = chunk_text(r["body_masked"] or "")
+        acc_tail = str(r["accession"]).replace("-", "")[-6:] if r.get("accession") else "000000"
+        for idx, chunk in enumerate(chunks):
+            rows.append({
+                "chunk_key":   f"{source_code}-{r['symbol']}-{r['filing_date']}-{acc_tail}-c{idx:02d}",
+                "accession":   r["accession"],
+                "symbol":      r["symbol"],
+                "company_key": hashlib.md5(r["symbol"].strip().lower().encode()).hexdigest(),
+                "filing_date": r["filing_date"],
+                "chunk_index": idx,
+                "n_tokens":    len(chunk.split()),
+                "body_chunk":  chunk,
+            })
+    if not rows:
+        return pd.DataFrame()
+    cdf = pd.DataFrame(rows)
+    embeddings = _MINILM.encode(cdf["body_chunk"].tolist(), normalize_embeddings=True, show_progress_bar=False)
+    cdf["embedding"] = list(embeddings.tolist())
+    return cdf
+
+import pandas as pd
+k10 = chunk_and_embed("advdatafinal.datos_masked.filings_10k_redacted", "10K")
+(spark.createDataFrame(k10)
+    .write.mode("overwrite").saveAsTable("advdatafinal.silver.silver_filings_10k_chunked"))
+print(f"silver.silver_filings_10k_chunked: {len(k10)} chunks")
+
+k8 = chunk_and_embed("advdatafinal.datos_masked.filings_8k_redacted", "8K")
+(spark.createDataFrame(k8)
+    .write.mode("overwrite").saveAsTable("advdatafinal.silver.silver_filings_8k_chunked"))
+print(f"silver.silver_filings_8k_chunked: {len(k8)} chunks")
+
+# COMMAND ----------
+
+# gold.dim_chunk (UNION of 10K + 8K with filing_type tag)
+spark.sql("""
+CREATE OR REPLACE TABLE advdatafinal.gold.dim_chunk AS
+SELECT '10K' AS filing_type, chunk_key, accession, symbol, company_key, filing_date, chunk_index, n_tokens, body_chunk, embedding
+FROM advdatafinal.silver.silver_filings_10k_chunked
+UNION ALL
+SELECT '8K' AS filing_type, chunk_key, accession, symbol, company_key, filing_date, chunk_index, n_tokens, body_chunk, embedding
+FROM advdatafinal.silver.silver_filings_8k_chunked
+""")
+print("gold.dim_chunk written")
+
+# COMMAND ----------
+
+# gold.fct_embedding_per_company (PCA top-5 on mean 10-K embeddings per filing)
+import numpy as np
+from sklearn.decomposition import PCA
+
+k10_local = spark.table("advdatafinal.silver.silver_filings_10k_chunked").toPandas()
+k10_local["vec"] = k10_local["embedding"].apply(np.array)
+# Mean-pool chunks per (company, filing_date) -> one vector per 10-K filing event
+filings = (k10_local.groupby(["company_key", "filing_date"])["vec"]
+           .apply(lambda s: np.mean(np.vstack(s.values), axis=0))
+           .reset_index().rename(columns={"vec": "mean_vec"}))
+mat = np.vstack(filings["mean_vec"].values)
+pca = PCA(n_components=5, random_state=7).fit(mat)
+pcs = pca.transform(mat)
+for i in range(5):
+    filings[f"filing_pc{i+1}"] = pcs[:, i]
+filings_out = filings.drop(columns=["mean_vec"])
+(spark.createDataFrame(filings_out)
+    .write.mode("overwrite").saveAsTable("advdatafinal.gold.fct_embedding_per_company"))
+print(f"gold.fct_embedding_per_company: {len(filings_out)} rows (5 components explain "
+      f"{pca.explained_variance_ratio_.sum():.1%} of variance)")
+
+# COMMAND ----------
+
 # gold.fct_sentiment_per_day (per-symbol per-day mean of FinBERT + article counts)
 spark.sql("""
 CREATE OR REPLACE TABLE advdatafinal.gold.fct_sentiment_per_day AS
@@ -86,14 +183,25 @@ print("gold.fct_sentiment_per_day written")
 
 # COMMAND ----------
 
-# gold.fct_feature_panel_daily_full (15 features + 4 sentiment)
+# gold.fct_feature_panel_daily_full (15 features + 4 sentiment + 5 PCA = 24 features)
+# Asof-join the most recent PCA filing event on or before each trade date
 spark.sql("""
 CREATE OR REPLACE TABLE advdatafinal.gold.fct_feature_panel_daily_full AS
+WITH pca_asof AS (
+    SELECT p.symbol, p.trade_date,
+           e.filing_pc1, e.filing_pc2, e.filing_pc3, e.filing_pc4, e.filing_pc5,
+           ROW_NUMBER() OVER (PARTITION BY p.symbol, p.trade_date ORDER BY e.filing_date DESC) AS rn
+    FROM advdatafinal.gold.fct_feature_panel_daily p
+    LEFT JOIN advdatafinal.gold.fct_embedding_per_company e
+        ON p.company_key = e.company_key AND e.filing_date <= p.trade_date
+)
 SELECT
     p.*,
-    s.news_score, s.n_news, s.press_score, s.n_press
+    s.news_score, s.n_news, s.press_score, s.n_press,
+    pca.filing_pc1, pca.filing_pc2, pca.filing_pc3, pca.filing_pc4, pca.filing_pc5
 FROM advdatafinal.gold.fct_feature_panel_daily p
 LEFT JOIN advdatafinal.gold.fct_sentiment_per_day s USING (symbol, trade_date)
+LEFT JOIN (SELECT * FROM pca_asof WHERE rn = 1) pca USING (symbol, trade_date)
 """)
 panel = (spark.table("advdatafinal.gold.fct_feature_panel_daily_full")
          .filter("y_5d_up IS NOT NULL")
@@ -163,8 +271,9 @@ for fold in folds():
 
 # COMMAND ----------
 
-# Rung 2 | same hyperparameters + 4 sentiment features
-TEXT_FEATURES = ["news_score","n_news","press_score","n_press"]
+# Rung 2 | same hyperparameters + 4 sentiment + 5 PCA features
+TEXT_FEATURES = ["news_score","n_news","press_score","n_press",
+                 "filing_pc1","filing_pc2","filing_pc3","filing_pc4","filing_pc5"]
 FULL_FEATURES = STRUCTURED_FEATURES + TEXT_FEATURES
 
 preds_rung2 = []
