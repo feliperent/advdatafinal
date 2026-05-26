@@ -17,8 +17,8 @@ panel = (spark.table("advdatafinal.gold.fct_feature_panel_daily_full")
          .filter("y_5d_up IS NOT NULL")
          .orderBy("symbol", "trade_date")
          .toPandas())
-# Spark DATE comes back as object (string or date); coerce to date for the fold comparison
-panel["trade_date"] = pd.to_datetime(panel["trade_date"]).dt.date
+# Spark DATE comes back as object; normalise to pandas datetime64 for clean masking
+panel["trade_date"] = pd.to_datetime(panel["trade_date"])
 print(f"Panel: {len(panel)} rows, {panel['symbol'].nunique()} stocks, "
       f"date range {panel['trade_date'].min()} to {panel['trade_date'].max()}, "
       f"up_rate {panel['y_5d_up'].mean():.3f}")
