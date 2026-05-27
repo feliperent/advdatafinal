@@ -3,14 +3,9 @@
 
 # COMMAND ----------
 
-# Runs as Job task 2, after the DLT pipeline finishes.
-# DLT (pipelinedatos.sql) builds: raw -> silver -> gold dims + fct_feature_panel_daily.
-# This notebook adds the ML-derived objects (10 more tables) and the trained outputs.
-#
-# Path A "incremental scoring": every FinBERT and MiniLM cell does a LEFT ANTI JOIN
-# against its target table so only NEW rows are scored. On a fresh run the targets
-# don't exist and everything is scored. On subsequent runs (after new news/press
-# arrive), only the deltas are scored -> ~3 min instead of ~55 min.
+# Job task 2: runs after the DLT pipeline. Builds FinBERT scores, MiniLM chunks,
+# PCA, sentiment, panel_full, predictions and backtest. Each scoring cell does a
+# LEFT ANTI JOIN against its target, so re-runs only score new rows (~3 min vs ~55).
 
 import mlflow, pandas as pd, numpy as np, hashlib
 import pyspark.sql.functions as F
@@ -28,7 +23,7 @@ def _new_rows(source_df, target_table_name, key_cols):
 
 # COMMAND ----------
 
-# FinBERT (Positive - Negative) | cached at module level so the model loads once per worker
+# FinBERT score = P(positive) - P(negative). Model cached so it loads once per worker.
 _FB_CACHE = {}
 def _finbert_score(texts):
     if "tok" not in _FB_CACHE:
@@ -74,7 +69,7 @@ print(f"silver.silver_press_scored: +{len(new_press)} new (target now "
 
 # COMMAND ----------
 
-# MiniLM chunker (500 tokens with 50 overlap) + 384-dim L2-normalised embeddings
+# MiniLM: 500-token chunks with 50 overlap, 384-dim L2-normalised embeddings.
 import tiktoken
 from sentence_transformers import SentenceTransformer
 
@@ -138,7 +133,8 @@ print(f"silver.silver_filings_8k_chunked: +{n8} new (target now "
 
 # COMMAND ----------
 
-# gold.dim_chunk (UNION) + gold.fct_embedding_per_company (PCA top-5)
+# dim_chunk joins dim_filing_type so the lineage edge appears. fct_embedding_per_company
+# is the top-5 PCA components of mean 10-K embeddings per filing event.
 spark.sql("""
 CREATE OR REPLACE TABLE advdatafinal.gold.dim_chunk AS
 WITH chunks AS (
@@ -174,7 +170,7 @@ print(f"gold.fct_embedding_per_company: {len(filings_out)} rows "
 
 # COMMAND ----------
 
-# gold.fct_sentiment_per_day + gold.fct_feature_panel_daily_full
+# Per-day sentiment aggregate + the 24-feature panel (15 structured + 4 sentiment + 5 PCA).
 spark.sql("""
 CREATE OR REPLACE TABLE advdatafinal.gold.fct_sentiment_per_day AS
 WITH news_daily AS (
@@ -222,7 +218,7 @@ print(f"Panel: {len(panel)} rows, {panel['symbol'].nunique()} stocks, "
 
 # COMMAND ----------
 
-# Walk-forward folds + 2 XGBoost rungs
+# 2 XGBoost rungs across walk-forward folds (3y train / 5d gap / 63d test).
 from datetime import date, timedelta
 from dataclasses import dataclass
 import xgboost as xgb
@@ -287,7 +283,7 @@ print(f"gold.fct_predictions: {len(all_preds)} rows")
 
 # COMMAND ----------
 
-# Walk-forward backtest (top-5 long, weekly rebalance, 5 bp tx cost)
+# Backtest: top-5 long basket, rebalanced every 5 trading days, 5 bp transaction cost.
 def backtest(preds_df, panel_df, top_n=5, tc_bp=5):
     preds_df = preds_df.copy()
     preds_df["trade_date"] = pd.to_datetime(preds_df["trade_date"])
