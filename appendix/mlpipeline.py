@@ -141,11 +141,17 @@ print(f"silver.silver_filings_8k_chunked: +{n8} new (target now "
 # gold.dim_chunk (UNION) + gold.fct_embedding_per_company (PCA top-5)
 spark.sql("""
 CREATE OR REPLACE TABLE advdatafinal.gold.dim_chunk AS
-SELECT '10K' AS filing_type, chunk_key, accession, symbol, company_key, filing_date, chunk_index, n_tokens, body_chunk, embedding
-FROM advdatafinal.silver.silver_filings_10k_chunked
-UNION ALL
-SELECT '8K' AS filing_type, chunk_key, accession, symbol, company_key, filing_date, chunk_index, n_tokens, body_chunk, embedding
-FROM advdatafinal.silver.silver_filings_8k_chunked
+WITH chunks AS (
+    SELECT '10K' AS filing_type_code, chunk_key, accession, symbol, company_key, filing_date, chunk_index, n_tokens, body_chunk, embedding
+    FROM advdatafinal.silver.silver_filings_10k_chunked
+    UNION ALL
+    SELECT '8K' AS filing_type_code, chunk_key, accession, symbol, company_key, filing_date, chunk_index, n_tokens, body_chunk, embedding
+    FROM advdatafinal.silver.silver_filings_8k_chunked
+)
+SELECT c.chunk_key, c.accession, c.symbol, c.company_key, c.filing_date, c.chunk_index, c.n_tokens, c.body_chunk, c.embedding,
+       ft.filing_type_key, c.filing_type_code AS filing_type, ft.label AS filing_type_label
+FROM chunks c
+INNER JOIN advdatafinal.gold.dim_filing_type ft ON ft.code = c.filing_type_code
 """)
 print("gold.dim_chunk written")
 
