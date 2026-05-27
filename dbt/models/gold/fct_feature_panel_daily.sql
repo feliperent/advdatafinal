@@ -99,11 +99,13 @@ joined AS (
             COALESCE(e.as_of_date, p.as_of_date)
         ) AS as_of_date
     FROM price p
-    LEFT JOIN {{ ref('dim_company') }} c ON c.company_key = p.company_key
-    LEFT JOIN fund_full ff ON ff.symbol = p.symbol AND ff.trade_date = p.trade_date
-    LEFT JOIN {{ ref('fct_sentiment_per_day') }} s
+    INNER JOIN {{ ref('dim_date') }}    d ON d.full_date  = p.trade_date
+    INNER JOIN {{ ref('dim_company') }} c ON c.company_key = p.company_key
+    INNER JOIN {{ ref('dim_sector') }}  sd ON sd.sector_key = c.sector_key
+    LEFT  JOIN fund_full ff ON ff.symbol = p.symbol AND ff.trade_date = p.trade_date
+    LEFT  JOIN {{ ref('fct_sentiment_per_day') }} s
            ON s.date_key = p.date_key AND s.company_key = p.company_key
-    LEFT JOIN embedded e ON e.company_key = p.company_key AND e.trade_date = p.trade_date
+    LEFT  JOIN embedded e ON e.company_key = p.company_key AND e.trade_date = p.trade_date
 )
 SELECT
     ROW_NUMBER() OVER (ORDER BY trade_date, company_key) + 1000 AS fact_panel_key,
