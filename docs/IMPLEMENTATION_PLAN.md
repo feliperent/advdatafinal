@@ -3607,12 +3607,12 @@ git commit -m "feat(backtest): Alpaca paper-trade demo (5 latest Rung 2 picks)"
 ### Task 8.2: Databricks DLT parity notebook (Appendix B)
 
 **Files:**
-- Create: `appendix/databricks_parity.py` (Databricks notebook source format)
-- Create: `appendix/dlt_equivalents.sql`
+- Create: `databricksstuff/databricks_parity.py` (Databricks notebook source format)
+- Create: `databricksstuff/dlt_equivalents.sql`
 
 - [ ] **Step 1: Write the DLT notebook**
 
-Create `appendix/databricks_parity.py` as a Databricks-runnable notebook. Mirror the local Postgres pipeline using DLT vocabulary from the midterm: `CREATE STREAMING TABLE`, `APPLY CHANGES INTO ... STORED AS SCD TYPE 1`, `CREATE MATERIALIZED VIEW`. Six raw streaming tables, six silver SCD-1 tables, four gold dims as streaming tables, three gold facts as materialised views. Cells should mirror `silver.silver_quejas_cleaned` from your midterm verbatim in structure.
+Create `databricksstuff/databricks_parity.py` as a Databricks-runnable notebook. Mirror the local Postgres pipeline using DLT vocabulary from the midterm: `CREATE STREAMING TABLE`, `APPLY CHANGES INTO ... STORED AS SCD TYPE 1`, `CREATE MATERIALIZED VIEW`. Six raw streaming tables, six silver SCD-1 tables, four gold dims as streaming tables, three gold facts as materialised views. Cells should mirror `silver.silver_quejas_cleaned` from your midterm verbatim in structure.
 
 Specific cell skeleton:
 
@@ -3693,7 +3693,7 @@ In a separate notebook cell, set `MLFLOW_TRACKING_URI` to the workspace URL and 
 
 Save to `report/figures/databricks_dlt_dag.png` and `report/figures/databricks_mlflow.png`.
 
-- [ ] **Step 5: Write `appendix/dlt_equivalents.sql`**
+- [ ] **Step 5: Write `databricksstuff/dlt_equivalents.sql`**
 
 Mirror each local Postgres model with its DLT equivalent and a one-line comment explaining the materialisation choice.
 
@@ -3701,7 +3701,7 @@ Mirror each local Postgres model with its DLT equivalent and a one-line comment 
 
 ```bash
 mkdir -p appendix
-git add appendix/
+git add databricksstuff/
 git commit -m "feat(appendix): Databricks DLT parity notebook + dlt_equivalents.sql"
 ```
 

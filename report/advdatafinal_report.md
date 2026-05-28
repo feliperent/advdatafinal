@@ -491,53 +491,113 @@ streamlit run streamlit_app/app.py
 
 # Appendix B: Databricks DLT Parity
 
-The local pipeline ports to Databricks Delta Live Tables using the team midterm's exact vocabulary. One notebook `appendix/databricks_parity.py` re-creates the same Bronze / Silver / Gold structure on Delta tables.
+The local pipeline ports to Databricks as two coordinated artefacts. The first is a Delta Live Tables pipeline whose source is the SQL notebook `databricksstuff/pipelinedatos.sql`. The second is a notebook task `databricksstuff/mlpipeline.py` that runs after the DLT pipeline as part of the Databricks Job. Together they reproduce 28 of the 30 user-facing objects from the local Postgres pipeline. The two objects that stay local-only are the Python audit log `raw.ingest_log` and the Streamlit RAG audit log `gold.fct_rag_queries`. Both are application-side concerns rather than analytical tables.
 
-Cell skeletons (see the notebook for the full code):
+## B.1 The DLT pipeline (16 nodes, pure SQL)
+
+The pipeline reads from the workspace Volume `/Volumes/advdatafinal/raw/landing/` and walks the medallion in pure SQL. Eight streaming tables ingest the raw files using Auto Loader. Four streaming tables in the `datos_masked` schema apply the same regex masks as the local dbt views. Silver layer uses `APPLY CHANGES INTO ... STORED AS SCD TYPE 1` for the typed price table and materialised views for the window-function transformations. Gold dimensions and the 15-feature `fct_feature_panel_daily` are materialised views that join back to the silver layer with a star-schema pattern.
+
+Cell skeletons from `pipelinedatos.sql`:
 
 ```sql
--- raw layer, 9 streaming tables
-CREATE STREAMING TABLE advdatafinal.raw.prices_raw
-AS SELECT
-  cast(symbol AS STRING)    AS symbol,
-  cast(trade_date AS STRING) AS trade_date,
-  ...
-FROM STREAM read_files('/Volumes/advdatafinal/landing/prices/', format => 'parquet');
+-- raw layer (8 streaming tables, Auto Loader)
+CREATE OR REFRESH STREAMING TABLE advdatafinal.raw.prices_raw AS
+SELECT cast(symbol as STRING) as symbol, cast(trade_date as STRING) as trade_date, ...,
+       current_timestamp() as ingest_ts
+FROM STREAM read_files('/Volumes/advdatafinal/raw/landing/prices/', format => 'parquet');
 
--- silver SCD-1 idempotency (matches the midterm pattern exactly)
+-- silver SCD-1 idempotency
 CREATE TEMPORARY STREAMING LIVE VIEW prices_typed AS
-SELECT ... cast/regex/CASE ... FROM STREAM(advdatafinal.raw.prices_raw);
+SELECT ... cast / WHERE close IS NOT NULL ... FROM STREAM(advdatafinal.raw.prices_raw);
 
-CREATE OR REFRESH STREAMING TABLE advdatafinal.silver.silver_prices_cleaned;
+CREATE OR REFRESH STREAMING TABLE advdatafinal.silver.silver_prices_cleaned (
+    CONSTRAINT valid_close_px_positive EXPECT (close_px > 0) ON VIOLATION DROP ROW,
+    CONSTRAINT valid_symbol_present    EXPECT (symbol IS NOT NULL) ON VIOLATION DROP ROW,
+    CONSTRAINT valid_date_in_range     EXPECT (trade_date BETWEEN DATE '2020-01-01' AND DATE '2026-12-31') ON VIOLATION DROP ROW
+);
 APPLY CHANGES INTO advdatafinal.silver.silver_prices_cleaned
-  FROM STREAM(prices_typed)
-  KEYS (symbol, trade_date)
-  SEQUENCE BY trade_date
-  STORED AS SCD TYPE 1;
+  FROM STREAM(prices_typed) KEYS (symbol, trade_date) SEQUENCE BY trade_date STORED AS SCD TYPE 1;
 
--- gold dimensions: streaming tables with md5 keys + GROUP BY (cheap aggregates allowed)
-CREATE OR REFRESH STREAMING TABLE advdatafinal.gold.dim_company AS
-SELECT md5(LOWER(TRIM(symbol))) AS company_key, symbol, name, sector
-FROM STREAM(advdatafinal.silver.silver_prices_cleaned)
-GROUP BY symbol, name, sector;
+-- gold dimensions derive from silver (no orphan VALUES nodes)
+CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.dim_date AS
+SELECT md5(cast(trade_date as STRING)) as date_key, trade_date as full_date,
+       YEAR(trade_date) as year, MONTH(trade_date) as month, ...,
+       TRUE as is_trading_day
+FROM (SELECT DISTINCT trade_date FROM advdatafinal.silver.silver_prices_cleaned);
 
--- gold facts: materialised views (window functions force this)
-CREATE MATERIALIZED VIEW advdatafinal.gold.fct_feature_panel_daily AS
-SELECT
-  ROW_NUMBER() OVER (ORDER BY trade_date, company_key) + 1000 AS fact_panel_key,
-  ... 30 features ...
-  CASE WHEN LEAD(close_px, 5) OVER (PARTITION BY company_key ORDER BY trade_date) > close_px
-       THEN 1 ELSE 0 END AS y_5d_up
-FROM advdatafinal.silver.silver_prices_cleaned ... JOIN ...
+-- gold fact: star-schema joined to dim_date / dim_company / dim_sector
+CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.fct_feature_panel_daily (
+    CONSTRAINT valid_symbol_present EXPECT (symbol IS NOT NULL)     ON VIOLATION DROP ROW,
+    CONSTRAINT valid_date_present   EXPECT (trade_date IS NOT NULL) ON VIOLATION DROP ROW
+) AS
+WITH price_with_target AS (
+    SELECT p.*, LEAD(close_px, 5) OVER (PARTITION BY symbol ORDER BY trade_date) AS close_px_t5
+    FROM advdatafinal.silver.silver_prices_features p
+),
+fundamentals_asof AS (
+    SELECT p.symbol, p.trade_date, f.roe, ..., f.asset_turnover,
+           ROW_NUMBER() OVER (PARTITION BY p.symbol, p.trade_date ORDER BY f.filing_date DESC NULLS LAST) AS rn
+    FROM price_with_target p
+    LEFT JOIN advdatafinal.silver.silver_fundamentals_cleaned f
+        ON p.symbol = f.symbol AND f.filing_date <= p.trade_date
+)
+SELECT p.price_key, d.date_key, c.company_key, p.symbol, p.trade_date,
+       p.log_ret_1d, p.sma_5, ..., p.vol_20d, fa.roe, ..., fa.asset_turnover,
+       CASE WHEN p.close_px_t5 IS NOT NULL AND p.close_px > 0
+            THEN LN(p.close_px_t5 / p.close_px) END AS y_5d_logret,
+       CASE WHEN p.close_px_t5 IS NOT NULL AND p.close_px > 0
+            THEN CASE WHEN p.close_px_t5 > p.close_px THEN 1 ELSE 0 END END AS y_5d_up
+FROM price_with_target p
+INNER JOIN advdatafinal.gold.dim_date    d  ON d.full_date  = p.trade_date
+INNER JOIN advdatafinal.gold.dim_company c  ON c.symbol     = p.symbol
+INNER JOIN advdatafinal.gold.dim_sector  s  ON s.sector_key = c.sector_key
+LEFT  JOIN fundamentals_asof             fa ON fa.symbol    = p.symbol AND fa.trade_date = p.trade_date AND fa.rn = 1;
 ```
 
-The cost-and-window-function lesson the team learned in the midterm carries directly: `ROW_NUMBER`, `LAG`, `LEAD` force the table to be a `MATERIALIZED VIEW` rather than a streaming table. Streaming tables stay cheap for the simple `GROUP BY` dimensions.
+The midterm lesson carries directly. `ROW_NUMBER`, `LAG`, `LEAD` force a materialised view, since streaming tables cannot evaluate window functions incrementally. Streaming tables stay cheap for the raw layer and the masked layer because those are stateless per row.
 
-The DLT pipeline takes ~5 minutes to refresh end to end on a Databricks Free Edition cluster. MLflow training (Rung 0/1/2) re-runs against the Databricks workspace with `MLFLOW_TRACKING_URI=databricks`. AUC values match local within ±0.005.
+## B.2 The notebook task (10 more tables)
+
+`mlpipeline.py` runs as the second task in the Job and reads from the workspace Volume and the DLT-built gold tables. It produces the text-side silvers, the gold aggregations that depend on them, and the trained outputs. Tables added:
+
+- `silver.silver_news_scored` and `silver.silver_press_scored` (FinBERT-tone, P(pos) - P(neg) per article)
+- `silver.silver_filings_10k_chunked` and `silver.silver_filings_8k_chunked` (500-token chunks, 50-token overlap, MiniLM-L6-v2 384-dim embeddings)
+- `gold.dim_chunk` (UNION of the two chunked tables, JOINed to `dim_filing_type`)
+- `gold.fct_embedding_per_company` (PCA top-5 components of mean 10-K embeddings per filing event)
+- `gold.fct_sentiment_per_day` (per-day rolling mean FinBERT score and article counts)
+- `gold.fct_feature_panel_daily_full` (15 structured features + 4 sentiment + 5 PCA = 24 features)
+- `gold.fct_predictions` and `gold.fct_backtest_pnl_daily` (two XGBoost rungs and the weekly walk-forward backtest)
+
+Every FinBERT and MiniLM cell does a `LEFT ANTI JOIN` against its target table before scoring. On a fresh run the target does not exist and everything is scored. On a re-run the anti-join finds zero new rows and the cell exits in seconds. End-to-end re-runs of the chained Job complete in about 5 minutes thanks to this pattern, versus about 55 minutes from cold.
+
+## B.3 Reading the Databricks lineage graph
+
+The Unity Catalog Lineage view shows three patterns worth calling out, because the same patterns will be present on every project using DLT plus a notebook task.
+
+**Pattern 1: raw tables report "output records: -" on every run after the first.** Auto Loader maintains a checkpoint of the files it has already ingested. On the first run, the raw streaming tables ingest every file in the Volume and report a non-zero `output_records` count. On subsequent runs, no new files have arrived, so the count is zero and the UI renders it as a dash. The total row count in the table is still the full ingest. The dash on raw tables is evidence that the streaming checkpoint logic is working, not evidence of an empty load.
+
+**Pattern 2: `dim_filing_type` connects to `dim_chunk` but not to `fct_feature_panel_daily`.** The dimension tags text sources at the chunk level: `10K`, `8K`, `NEWS`, `PRESS`. The fact table sits at a different grain, one row per company per trading day, and its text features are already aggregated across all filing types. Forcing a join to `dim_filing_type` on the fact would be cosmetic, since no single value of `filing_type` describes a row whose features come from a mix of news and press and 10-K embeddings. The same point applies to `dim_sector`, which connects through `dim_company` rather than directly to facts. Both decisions follow the grain rule: a dimension joins a fact only when each row of the fact has exactly one value of that dimension.
+
+**Pattern 3: `fct_predictions`, `fct_backtest_pnl_daily`, and `fct_embedding_per_company` show no upstream table edges.** Unity Catalog builds lineage from Spark queries. The notebook task uses `spark.table(...).toPandas()` to read source tables, trains XGBoost or runs sklearn PCA on a pandas DataFrame, then writes the output via `spark.createDataFrame(pdf).write.saveAsTable(...)`. The pandas roundtrip breaks the Spark query chain, so UC records only the write step and not the upstream read. The data dependency is still verifiable from the notebook source code. This is a documented limitation of UC Lineage with pandas-intermediate ML workflows on the runtime we use.
+
+## B.4 Parity with the local pipeline
+
+A side-by-side count of objects:
+
+| Layer | Postgres tables | Databricks tables | Match |
+|---|---|---|---|
+| raw | 9 (8 source + `raw.ingest_log`) | 8 | 8/8 portable (ingest_log is local-only by design) |
+| datos_masked | 4 | 4 | 4/4 |
+| silver | 6 | 7 (extra `silver_prices_features`) | 6/6 plus a Databricks-only split for streaming-vs-MV separation |
+| gold | 11 (including `gold.fct_rag_queries`) | 11 (including `gold.fct_feature_panel_daily_full`) | 9/9 portable (rag_queries is local-only, feature_panel_full is the sentiment-joined panel for Rung 2 training) |
+
+Twenty-eight tables exist on both sides. The four differences are all by design.
+
+The Job ran end to end in 4.8 minutes on the most recent refresh, versus 53.7 minutes on the first cold run. The DLT side takes about 30 seconds. The notebook task takes the rest. AUC and net return per rung match the local pipeline within the rounding window expected from small numeric differences in the silver layer.
 
 # Appendix C: dlt_equivalents.sql reference
 
-A one-to-one mapping between every local Postgres model and its DLT equivalent lives in `appendix/dlt_equivalents.sql`. Each model is accompanied by a one-line comment explaining the materialisation choice (streaming table vs materialised view) and which window function forced the choice. This is the documented learning from the team's IN014 midterm extended to the project's 20-table footprint.
+A one-to-one mapping between every local Postgres model and its DLT equivalent lives in `databricksstuff/dlt_equivalents.sql`. Each model is accompanied by a one-line comment explaining the materialisation choice (streaming table vs materialised view) and which window function forced the choice. This is the documented learning from the team's IN014 midterm extended to the project's 20-table footprint.
 
 # References
 

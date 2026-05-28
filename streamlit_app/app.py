@@ -74,9 +74,8 @@ def load_pnl() -> pd.DataFrame:
             conn,
         )
 
-# ----------------------------- UI ---------------------------------------------
 
-st.title("advdatafinal | IN014 Final Project | Felipe Rentería, 2026")
+st.title("Final Project Advanced Data Processing by FR, DP, MA and NA ")
 st.caption("Direction prediction + RAG over SEC filings on 20 US stocks.")
 
 companies = load_companies()

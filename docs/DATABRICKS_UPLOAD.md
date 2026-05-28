@@ -1,7 +1,7 @@
 # Uploading bronze/ to Databricks Volumes
 
 The local pipeline writes raw API responses to `bronze/` on disk. The DLT pipeline
-(`appendix/pipelinedatos.sql`) reads them from a Databricks Volume, so the folder needs to
+(`databricksstuff/pipelinedatos.sql`) reads them from a Databricks Volume, so the folder needs to
 go up to the workspace once. About 51 MB across 477 files.
 
 ## What gets uploaded
@@ -70,7 +70,7 @@ A small pyarrow script at `scripts/fix_prices_parquet.py` does this in place.
 
 ## After uploading
 
-1. Run the DLT pipeline that points at `appendix/pipelinedatos.sql` (raw, datos_masked,
+1. Run the DLT pipeline that points at `databricksstuff/pipelinedatos.sql` (raw, datos_masked,
    silver, gold dimensions).
-2. Open `appendix/mlpipeline.py` and run it (FinBERT, MiniLM, PCA, 3 rungs, backtest).
-3. The Job in `appendix/workflow.yaml` chains the two if you want them automated.
+2. Open `databricksstuff/mlpipeline.py` and run it (FinBERT, MiniLM, PCA, 3 rungs, backtest).
+3. The Job in `databricksstuff/workflow.yaml` chains the two if you want them automated.

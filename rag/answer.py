@@ -1,6 +1,6 @@
-"""Claude Haiku RAG generator: question + top-k chunks + SHAP -> explanatory paragraph with citations.
+#Claude Haiku RAG generator: question + top-k chunks + SHAP -> explanatory paragraph with citations.
 
-Audit trail: every call writes one row to gold.fct_rag_queries."""
+#Audit trail: every call writes one row to gold.fct_rag_queries."""
 from __future__ import annotations
 
 import json

@@ -7,7 +7,7 @@ it to advdatafinal.
 
 ## 1. Loading FinBERT inside `@dlt.table` (re-downloaded every refresh)
 
-### What we do today (in `appendix/mlpipeline_dlt.py`)
+### What we do today (in `databricksstuff/mlpipeline_dlt.py`)
 
 ```python
 def _finbert_score(texts):
@@ -173,7 +173,7 @@ Naming convention from the docs: `valid_<col>_<constraint>`, e.g.
 - Failures are silent today; an expect_or_drop would surface NULL-bombs that would
   otherwise pass through and corrupt the feature panel.
 
-**Concrete suggestion for tomorrow (one diff against `appendix/pipelinedatos.sql`):**
+**Concrete suggestion for tomorrow (one diff against `databricksstuff/pipelinedatos.sql`):**
 
 ```sql
 CREATE OR REFRESH STREAMING TABLE advdatafinal.silver.silver_prices_cleaned (

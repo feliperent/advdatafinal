@@ -23,7 +23,7 @@ resources:
         - task_key: ml_pipeline
           description: FinBERT scoring + MiniLM chunking + PCA + 2 XGBoost rungs + backtest
           notebook_task:
-            notebook_path: /Workspace/Repos/lfrenteria33@gmail.com/advdatafinal/appendix/mlpipeline
+            notebook_path: /Workspace/Repos/lfrenteria33@gmail.com/advdatafinal/databricksstuff/mlpipeline
           # MiniLM embedding of 14k chunks on serverless CPU takes ~45 min; FinBERT + train + backtest add another ~10 min.
           timeout_seconds: 5400
           depends_on:

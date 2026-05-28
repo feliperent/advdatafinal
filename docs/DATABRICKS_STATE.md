@@ -68,13 +68,13 @@ raw.sec_8k_raw           --> datos_masked.filings_8k_redacted  --> gold.dim_fili
 The text-side gold tables (`fct_sentiment_per_day`, `fct_embedding_per_company`,
 `fct_predictions`, `fct_backtest_pnl_daily`) live in `mlpipeline.py` because they
 need PyTorch (FinBERT, MiniLM) and sklearn / xgboost (PCA, training, backtest).
-The notebook runs as the second task in `appendix/workflow.yaml`, reading
+The notebook runs as the second task in `databricksstuff/workflow.yaml`, reading
 `gold.fct_feature_panel_daily` and writing back to gold.
 
 ### DLT pipeline
 
 - Name: `advdatafinal_dlt`
-- Source notebook: `/Workspace/Repos/lfrenteria33@gmail.com/advdatafinal/appendix/pipelinedatos`
+- Source notebook: `/Workspace/Repos/lfrenteria33@gmail.com/advdatafinal/databricksstuff/pipelinedatos`
 - Catalog / default schema: `advdatafinal` / `raw`
 - Compute: Serverless
 - Mode: Triggered (manual full refresh)
@@ -85,11 +85,11 @@ The notebook runs as the second task in `appendix/workflow.yaml`, reading
 
 `/Workspace/Repos/lfrenteria33@gmail.com/advdatafinal/`
 
-- `appendix/pipelinedatos` (SQL notebook) - the DLT pipeline above
-- `appendix/mlpipeline` (Python notebook) - FinBERT + MiniLM + PCA + 3 rungs + backtest stub
-- `appendix/workflow.yaml` - Databricks Job chaining DLT and the ML notebook
-- `appendix/grants.sql` - one-time CATALOG and SCHEMA grants
-- `appendix/dlt_equivalents.sql` - local-Postgres-to-DLT mapping reference
+- `databricksstuff/pipelinedatos` (SQL notebook) - the DLT pipeline above
+- `databricksstuff/mlpipeline` (Python notebook) - FinBERT + MiniLM + PCA + 3 rungs + backtest stub
+- `databricksstuff/workflow.yaml` - Databricks Job chaining DLT and the ML notebook
+- `databricksstuff/grants.sql` - one-time CATALOG and SCHEMA grants
+- `databricksstuff/dlt_equivalents.sql` - local-Postgres-to-DLT mapping reference
 
 ### SQL warehouse
 
@@ -102,11 +102,11 @@ The DLT pipeline failed several times before COMPLETED. Each failure and its fix
 
 1. **No write permission on advdatafinal.raw.**
    The catalog was created in the UI but the user identity lacked CREATE TABLE / MODIFY.
-   Fix: run `appendix/grants.sql` once in a SQL Editor query (USE CATALOG, USE SCHEMA,
+   Fix: run `databricksstuff/grants.sql` once in a SQL Editor query (USE CATALOG, USE SCHEMA,
    CREATE TABLE, MODIFY, CREATE MATERIALIZED VIEW on every schema).
 
 2. **Notebook path included the .sql extension.**
-   `/Workspace/Repos/.../appendix/pipelinedatos.sql` returned NOTEBOOK_NOT_FOUND_EXCEPTION.
+   `/Workspace/Repos/.../databricksstuff/pipelinedatos.sql` returned NOTEBOOK_NOT_FOUND_EXCEPTION.
    Databricks identifies SQL notebooks without extensions. Fix: drop the `.sql`.
 
 3. **Parquet timestamps were nanoseconds.**
