@@ -329,10 +329,7 @@ FROM present p
 JOIN labels l ON l.code = p.code
 WHERE p.n > 0;
 
--- gold.fct_feature_panel_daily (15-feature ML training table)
--- One row per (symbol, trade_date). Star-schema joined: pulls date_key from dim_date and
--- company_key from dim_company so UC Lineage shows dim -> fct edges explicitly. Fundamentals
--- are asof-joined to the most recent filing on or before the trade date.
+-- gold.fct_feature_panel_daily (15-feature ML training table; star-joined to dim_date / dim_company / dim_sector, asof-joined to fundamentals)
 CREATE OR REFRESH MATERIALIZED VIEW advdatafinal.gold.fct_feature_panel_daily (
     CONSTRAINT valid_symbol_present EXPECT (symbol IS NOT NULL)        ON VIOLATION DROP ROW,
     CONSTRAINT valid_date_present   EXPECT (trade_date IS NOT NULL)    ON VIOLATION DROP ROW,
