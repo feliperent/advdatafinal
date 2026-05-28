@@ -28,7 +28,11 @@ dbt/dbt_packages/
 .vscode/
 .idea/
 
-# Build artefacts
-report/figures/*.png
-!report/figures/.gitkeep
+# Academic write-up artefacts (live in /Users/renteeee/Desktop/advdatafinal-report/, never in this repo)
+report/
+*.docx
+*.pdf
+scripts/build_report_docx.py
+
+# Python build artefacts
 *.egg-info/
