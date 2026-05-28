@@ -36,3 +36,10 @@ sources:
         description: 10-K Item 1A text chunked (500 tokens, 50 overlap) with 384-dim embedding
       - name: silver_filings_8k_chunked
         description: 8-K text chunked + embedded
+
+  - name: gold_python
+    description: Gold tables written by Python (Streamlit RAG app, ML training, backtest).
+    schema: gold
+    tables:
+      - name: fct_rag_queries
+        description: One row per RAG answer with cited top-k chunk_ids (text array), llm_model, latency_ms, tokens, response.

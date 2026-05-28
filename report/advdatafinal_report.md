@@ -40,7 +40,7 @@ Six logical sources land as nine raw Postgres tables. Three are structured (numb
 | Balance sheet | FMP `/stable/balance-sheet-statement` | Structured | 400 quarterly filings |
 | Cash flow | FMP `/stable/cash-flow-statement` | Structured | 400 quarterly filings |
 | News articles | FMP `/stable/news/stock` | Unstructured (article body) | 3,853 articles, last 90 days |
-| Press releases | FMP `/stable/news/press-releases` | Unstructured (release body) | 563 releases, last 90 days |
+| Press releases | FMP `/stable/news/press-releases` | Unstructured (release body) | 563 releases, last 90 days (the FMP endpoint caps the per-symbol response at 50 rows, so large-cap counts are floor-truncated; a production deployment would paginate the API call) |
 | 10-K Item 1A Risk Factors | SEC EDGAR via `edgartools` | Unstructured (long form) | 95 filings, ~5 per stock |
 | 8-K material events | SEC EDGAR via `edgartools` | Unstructured | 255 filings, last 12 months |
 | Audit trail | local | Structured | 160 ingest_log rows with sha256 checksums |
