@@ -1,287 +1,308 @@
-"""Build APA-styled DOCX report from the markdown source plus a custom cover page.
+"""Build the IN014 final-project DOCX from report/advdatafinal_report.md.
 
-Pipeline:
-  1. pandoc converts report/advdatafinal_report.md -> report/_body.docx
-  2. python-docx prepends a Vitalux/Business-Law style cover page
-  3. python-docx inserts figure placeholders for the two DAG screenshots
-  4. Final file saved at report/advdatafinal_report.docx
+Matches the style of /Users/renteeee/Desktop/Methods of DM/reporttask3.docx:
+  - 2.5cm margins on every side, A4
+  - Default font 12pt, justified body
+  - Cover page: date centred, title centred bold, course centred bold
+  - Index / Table of Contents block before the body
+  - Section headings bold inline (no oversized fonts)
+  - Figure placeholders rendered as italic captions plus a coloured
+    [INSERT IMAGE HERE: path/filename.png] marker if the PNG is missing.
+    Drop the PNG in report/figures/ and re-run to auto-embed.
+
+Output: report/advdatafinal_report.docx
 """
 from __future__ import annotations
 
-import shutil
+import re
 import subprocess
 from datetime import date
 from pathlib import Path
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
-from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
-from docx.shared import Cm, Pt, RGBColor
+from docx.oxml.ns import qn
+from docx.shared import Cm, Inches, Pt, RGBColor
 
 REPO = Path(__file__).resolve().parent.parent
 MD_SRC = REPO / "report" / "advdatafinal_report.md"
-BODY_DOCX = REPO / "report" / "_body.docx"
-OUT_DOCX = REPO / "report" / "advdatafinal_report.docx"
-FIGURES_DIR = REPO / "report" / "figures"
+OUT = REPO / "report" / "advdatafinal_report.docx"
+FIGURES = REPO / "report" / "figures"
+FIGURES.mkdir(parents=True, exist_ok=True)
+
+# Title-page metadata.
+TODAY = date.today().strftime("%d/%m/%Y")
+TITLE = "advdatafinal"
+SUBTITLE = "A medallion pipeline with retrieval-augmented generation for 5-day directional return prediction"
+COURSE = "IN014 Advanced Data Processing and Analysis"
+AUTHOR = "Felipe Rentería Zuleta"
+INSTITUTION = "Universitat Ramon Llull, La Salle Barcelona, 2025-2026"
+
+# Body styling.
+FONT = "Times New Roman"
+BODY_SIZE = Pt(12)
+CAPTION_SIZE = Pt(11)
+CODE_SIZE = Pt(10)
+
+# Image markers to look for in markdown.
+IMAGE_PLACEHOLDER_RE = re.compile(r"\[\s*INSERT FIGURE [\w\d.]+:\s*([^\]]+?)\s*\]")
 
 
-def run_pandoc() -> None:
-    """Convert markdown to a base DOCX."""
-    BODY_DOCX.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "pandoc",
-        str(MD_SRC),
-        "-o", str(BODY_DOCX),
-        "--from", "gfm",
-        "--reference-doc", "/dev/null" if not (REPO / "report" / "_reference.docx").exists() else str(REPO / "report" / "_reference.docx"),
-    ]
-    # Strip the non-existent reference flag
-    cmd = [c for c in cmd if c != "/dev/null"]
-    if "/dev/null" in cmd:
-        cmd.remove("/dev/null")
-    # Simpler: just run pandoc without reference doc if missing
-    if not (REPO / "report" / "_reference.docx").exists():
-        cmd = ["pandoc", str(MD_SRC), "-o", str(BODY_DOCX), "--from", "gfm"]
-    print(f"pandoc: {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
+def _apply_default_font(run, size: Pt = BODY_SIZE, *, bold: bool = False, italic: bool = False) -> None:
+    run.font.name = FONT
+    rpr = run._element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.append(rfonts)
+    rfonts.set(qn("w:ascii"), FONT)
+    rfonts.set(qn("w:hAnsi"), FONT)
+    rfonts.set(qn("w:cs"), FONT)
+    run.font.size = size
+    run.font.bold = bold
+    run.font.italic = italic
 
 
-def set_page_margins(doc: Document) -> None:
-    """APA 7th edition: 1 inch (2.54 cm) margins on every side."""
+def _page_setup(doc: Document) -> None:
     for section in doc.sections:
-        section.top_margin = Cm(2.54)
-        section.bottom_margin = Cm(2.54)
-        section.left_margin = Cm(2.54)
-        section.right_margin = Cm(2.54)
-
-
-def add_page_numbers(doc: Document) -> None:
-    """Top-right page number per APA."""
-    for section in doc.sections:
+        section.top_margin = Cm(2.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(2.5)
+        # Page numbers top-right
         header = section.header
         p = header.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         run = p.add_run()
-        fldChar1 = OxmlElement("w:fldChar")
-        fldChar1.set(qn("w:fldCharType"), "begin")
-        instrText = OxmlElement("w:instrText")
-        instrText.set(qn("xml:space"), "preserve")
-        instrText.text = "PAGE"
-        fldChar2 = OxmlElement("w:fldChar")
-        fldChar2.set(qn("w:fldCharType"), "end")
-        run._r.append(fldChar1)
-        run._r.append(instrText)
-        run._r.append(fldChar2)
-        run.font.name = "Times New Roman"
-        run.font.size = Pt(11)
+        fc1 = OxmlElement("w:fldChar"); fc1.set(qn("w:fldCharType"), "begin")
+        instr = OxmlElement("w:instrText"); instr.set(qn("xml:space"), "preserve"); instr.text = "PAGE"
+        fc2 = OxmlElement("w:fldChar"); fc2.set(qn("w:fldCharType"), "end")
+        run._r.append(fc1); run._r.append(instr); run._r.append(fc2)
+        _apply_default_font(run, size=Pt(10))
 
 
-def set_body_font(doc: Document, font_name: str = "Times New Roman", size: int = 11) -> None:
-    """Apply Times New Roman 11pt to all paragraphs and runs."""
-    for paragraph in doc.paragraphs:
-        for run in paragraph.runs:
-            if not run.font.name:
-                run.font.name = font_name
-            if not run.font.size:
-                run.font.size = Pt(size)
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        if not run.font.name:
-                            run.font.name = font_name
-                        if not run.font.size:
-                            run.font.size = Pt(10)
+def _add_cover(doc: Document) -> None:
+    # Date, top centred.
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _apply_default_font(p.add_run(TODAY))
 
+    # Vertical breathing room.
+    for _ in range(10):
+        doc.add_paragraph()
 
-def build_cover(doc: Document) -> None:
-    """Vitalux / Business-Law style cover at the top of the doc.
+    # Title centred bold.
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _apply_default_font(p.add_run(TITLE), bold=True)
 
-    Layout: small date top-left, large title centred mid-page,
-    subtitle, course, author block, institution at bottom.
-    Single-spaced. Page break after.
-    """
-    # Insert cover before existing content. Easiest: build a fresh cover doc
-    # and concatenate. Here we just prepend paragraphs.
+    # Subtitle centred.
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _apply_default_font(p.add_run(SUBTITLE))
 
-    # Date (top-left, small)
-    p_date = doc.paragraphs[0].insert_paragraph_before(date.today().strftime("%d/%m/%Y"))
-    p_date.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_date.runs[0].font.name = "Times New Roman"
-    p_date.runs[0].font.size = Pt(11)
+    doc.add_paragraph()
+    doc.add_paragraph()
 
-    # Vertical spacer
+    # Course centred bold.
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _apply_default_font(p.add_run(COURSE), bold=True)
+
+    # Final Project label, lighter weight.
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _apply_default_font(p.add_run("Final Project"))
+
     for _ in range(8):
-        p_date.insert_paragraph_before("")
+        doc.add_paragraph()
 
-    # Title
-    title = p_date.insert_paragraph_before("")
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title.add_run("advdatafinal")
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(28)
-    run.bold = True
+    # Author + institution.
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _apply_default_font(p.add_run(AUTHOR), bold=True)
 
-    # Subtitle
-    subtitle = p_date.insert_paragraph_before("")
-    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = subtitle.add_run(
-        "A medallion pipeline with retrieval-augmented generation\n"
-        "for 5-day directional return prediction"
-    )
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(16)
-    run.italic = True
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _apply_default_font(p.add_run(INSTITUTION))
 
-    # Small gap
-    for _ in range(3):
-        p_date.insert_paragraph_before("")
-
-    # Course
-    course = p_date.insert_paragraph_before("")
-    course.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = course.add_run("IN014 Advanced Data Processing and Analysis")
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(14)
-
-    # Final project marker
-    fp = p_date.insert_paragraph_before("")
-    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = fp.add_run("Final Project")
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(12)
-
-    # Spacer
-    for _ in range(8):
-        p_date.insert_paragraph_before("")
-
-    # Author block
-    author = p_date.insert_paragraph_before("")
-    author.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = author.add_run("Felipe Rentería Zuleta")
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(12)
-    run.bold = True
-
-    # Institution
-    inst = p_date.insert_paragraph_before("")
-    inst.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = inst.add_run("Universitat Ramon Llull, La Salle Barcelona\n2025-2026 academic year")
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(11)
-
-    # Page break before the body
-    pbreak = p_date.insert_paragraph_before("")
-    pbreak.add_run().add_break(WD_BREAK.PAGE)
+    # Page break before TOC.
+    p = doc.add_paragraph()
+    p.add_run().add_break(WD_BREAK.PAGE)
 
 
-def insert_figure_placeholders(doc: Document) -> None:
-    """Find the §4.2 'Architecture diagram' heading and append two figure boxes.
+def _add_toc(doc: Document) -> None:
+    # Index heading.
+    p = doc.add_paragraph()
+    _apply_default_font(p.add_run("Index"), bold=True)
 
-    The two figures (DAG and Job graph) are PNG screenshots the user took.
-    If they exist in report/figures/, embed them. Otherwise leave a labelled
-    placeholder paragraph the user can drag the PNG into.
-    """
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    dag_png = FIGURES_DIR / "databricks_dlt_dag.png"
-    job_png = FIGURES_DIR / "databricks_job_graph.png"
+    entries = [
+        ("Section 1. Introduction", "3"),
+        ("Section 2. Data Governance", "5"),
+        ("Section 3. Data Stack", "7"),
+        ("Section 4. Data Model", "9"),
+        ("Section 5. Findings", "12"),
+        ("Section 6. Reflection", "14"),
+        ("Appendix A. Code repository", "16"),
+        ("Appendix B. Databricks workspace mirror", "16"),
+        ("Appendix C. Reproducibility", "16"),
+    ]
+    for label, page in entries:
+        p = doc.add_paragraph()
+        run = p.add_run(label)
+        _apply_default_font(run)
+        # Tab leader of dots.
+        run2 = p.add_run("\t" + "." * 60 + "\t" + page)
+        _apply_default_font(run2)
 
-    # Find §4.2 heading
-    target_idx = None
-    for i, p in enumerate(doc.paragraphs):
-        if "Architecture diagram" in p.text and (p.style.name.startswith("Heading") or "##" in p.text):
-            target_idx = i
-            break
+    # List of figures.
+    doc.add_paragraph()
+    p = doc.add_paragraph()
+    _apply_default_font(p.add_run("Table of figures"), bold=True)
+    figs = [
+        ("Figure 4.1. Databricks DLT pipeline DAG (advdatafinal_dlt)", "10"),
+        ("Figure 4.2. Databricks Job graph (advdatafinal-pipeline)", "11"),
+    ]
+    for label, page in figs:
+        p = doc.add_paragraph()
+        _apply_default_font(p.add_run(label))
+        run2 = p.add_run("\t" + "." * 60 + "\t" + page)
+        _apply_default_font(run2)
 
-    if target_idx is None:
-        print("  Architecture-diagram heading not found, appending figures at end")
-        anchor = doc.paragraphs[-1]
-    else:
-        # Insert after the heading
-        anchor = doc.paragraphs[target_idx]
+    # List of tables.
+    doc.add_paragraph()
+    p = doc.add_paragraph()
+    _apply_default_font(p.add_run("Table of tables"), bold=True)
+    tables = [
+        ("Table 1.1. External data sources, formats, and loaded volumes", "4"),
+        ("Table 4.1. Nine declarative data-quality constraints inside the DLT pipeline", "11"),
+        ("Table 5.1. AUC and hit rate per rung over 10 walk-forward folds", "13"),
+        ("Table 5.2. Backtest cumulative return per rung over the 2024-2025 window", "13"),
+    ]
+    for label, page in tables:
+        p = doc.add_paragraph()
+        _apply_default_font(p.add_run(label))
+        run2 = p.add_run("\t" + "." * 60 + "\t" + page)
+        _apply_default_font(run2)
 
-    # Figure 1: DLT DAG
-    fig1_caption = anchor.insert_paragraph_before("")
-    fig1_caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = fig1_caption.add_run(
-        "Figure 4.1. Databricks DLT pipeline DAG (advdatafinal_dlt). "
-        "8 raw streaming tables (left) flow into 4 datos_masked redacted "
-        "streaming tables, the silver layer (prices_typed view, silver_prices_cleaned "
-        "SCD-1, two materialised views for features and fundamentals), and the gold "
-        "layer (4 dimensions plus fct_feature_panel_daily). Star-schema joins on "
-        "dim_date, dim_company, and dim_sector are explicit so the lineage graph "
-        "renders dimension-to-fact edges."
-    )
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(10)
-    run.italic = True
+    # Page break before body.
+    p = doc.add_paragraph()
+    p.add_run().add_break(WD_BREAK.PAGE)
 
-    fig1_holder = anchor.insert_paragraph_before("")
-    fig1_holder.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if dag_png.exists():
-        from docx.shared import Inches
-        fig1_holder.add_run().add_picture(str(dag_png), width=Inches(6.0))
-    else:
-        run = fig1_holder.add_run(f"[ INSERT IMAGE HERE: {dag_png.name} ]")
-        run.font.name = "Times New Roman"
-        run.font.size = Pt(11)
-        run.bold = True
-        run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
 
-    anchor.insert_paragraph_before("")
+def _strip_inline_md(text: str) -> str:
+    """Drop bold/italic/code markdown markers from inline runs."""
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)
+    return text
 
-    # Figure 2: ML Job graph
-    fig2_caption = anchor.insert_paragraph_before("")
-    fig2_caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = fig2_caption.add_run(
-        "Figure 4.2. Databricks Job graph (advdatafinal-pipeline). "
-        "Task 1 (data_pipeline) triggers the DLT pipeline above. Task 2 (ml_pipeline) "
-        "runs the serverless notebook databricksstuff/mlpipeline.py and depends on "
-        "task 1. The notebook scores news and press releases with FinBERT, chunks "
-        "and embeds 10-K and 8-K filings with MiniLM, computes 5 PCA components per "
-        "company, builds fct_feature_panel_daily_full, trains two XGBoost rungs over "
-        "walk-forward folds, and writes the backtest. LEFT ANTI JOIN logic in the "
-        "FinBERT and MiniLM cells gives incremental scoring (4.4 minutes on re-runs "
-        "vs 53.7 minutes from scratch)."
-    )
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(10)
-    run.italic = True
 
-    fig2_holder = anchor.insert_paragraph_before("")
-    fig2_holder.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if job_png.exists():
-        from docx.shared import Inches
-        fig2_holder.add_run().add_picture(str(job_png), width=Inches(4.0))
-    else:
-        run = fig2_holder.add_run(f"[ INSERT IMAGE HERE: {job_png.name} ]")
-        run.font.name = "Times New Roman"
-        run.font.size = Pt(11)
-        run.bold = True
-        run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+def _render_table(doc: Document, lines: list[str]) -> None:
+    rows = []
+    for line in lines:
+        parts = [c.strip() for c in line.strip().strip("|").split("|")]
+        rows.append(parts)
+    # rows[0] is header, rows[1] is the |---|---| separator
+    headers = rows[0]
+    data = [r for r in rows[2:] if r and not all(c.startswith("-") for c in r)]
+    table = doc.add_table(rows=1 + len(data), cols=len(headers))
+    table.style = "Light Grid Accent 1"
+    for j, h in enumerate(headers):
+        cell = table.rows[0].cells[j]
+        cell.text = ""
+        p = cell.paragraphs[0]
+        _apply_default_font(p.add_run(_strip_inline_md(h)), size=Pt(10), bold=True)
+    for i, row in enumerate(data, start=1):
+        for j, val in enumerate(row):
+            cell = table.rows[i].cells[j]
+            cell.text = ""
+            p = cell.paragraphs[0]
+            _apply_default_font(p.add_run(_strip_inline_md(val)), size=Pt(10))
+    doc.add_paragraph()
 
-    anchor.insert_paragraph_before("")
+
+def _render_body(doc: Document) -> None:
+    md = MD_SRC.read_text()
+    lines = md.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Markdown table block (line containing pipes followed by a |---|---| row).
+        if stripped.startswith("|") and stripped.endswith("|") and (i + 1 < len(lines)) and re.match(r"^\|[\s:-]+\|", lines[i + 1].strip()):
+            block_start = i
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                i += 1
+            _render_table(doc, lines[block_start:i])
+            continue
+
+        # Image placeholder lines.
+        m = IMAGE_PLACEHOLDER_RE.search(stripped)
+        if m:
+            path = m.group(1).strip()
+            png = REPO / path
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if png.exists():
+                p.add_run().add_picture(str(png), width=Inches(6.0))
+            else:
+                run = p.add_run(f"[ INSERT IMAGE HERE: {path} ]")
+                _apply_default_font(run, bold=True)
+                run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+            i += 1
+            continue
+
+        # Markdown headings.
+        # Top-level (#) -> section heading, 12pt bold, with a page break before
+        # so each numbered section starts on a new page.
+        if stripped.startswith("# "):
+            p = doc.add_paragraph()
+            p.add_run().add_break(WD_BREAK.PAGE)
+            p = doc.add_paragraph()
+            _apply_default_font(p.add_run(stripped[2:].strip()), bold=True)
+            doc.add_paragraph()
+            i += 1
+            continue
+        if stripped.startswith("## "):
+            doc.add_paragraph()
+            p = doc.add_paragraph()
+            _apply_default_font(p.add_run(stripped[3:].strip()), bold=True)
+            i += 1
+            continue
+        if stripped.startswith("### "):
+            p = doc.add_paragraph()
+            _apply_default_font(p.add_run(stripped[4:].strip()), italic=True)
+            i += 1
+            continue
+
+        # Empty line -> blank paragraph.
+        if not stripped:
+            doc.add_paragraph()
+            i += 1
+            continue
+
+        # Body paragraph (justified).
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        _apply_default_font(p.add_run(_strip_inline_md(stripped)))
+        i += 1
 
 
 def main() -> None:
-    run_pandoc()
-    doc = Document(str(BODY_DOCX))
-
-    set_page_margins(doc)
-    add_page_numbers(doc)
-    build_cover(doc)
-    insert_figure_placeholders(doc)
-    set_body_font(doc)
-
-    doc.save(str(OUT_DOCX))
-    BODY_DOCX.unlink(missing_ok=True)
-    print(f"\n✓ wrote {OUT_DOCX}")
-    print(f"  figures dir: {FIGURES_DIR}")
-    print(f"  expected PNGs (drop them in to auto-embed on next build):")
-    print(f"    - {FIGURES_DIR / 'databricks_dlt_dag.png'}")
-    print(f"    - {FIGURES_DIR / 'databricks_job_graph.png'}")
+    doc = Document()
+    _page_setup(doc)
+    _add_cover(doc)
+    _add_toc(doc)
+    _render_body(doc)
+    doc.save(str(OUT))
+    print(f"\n[ok] wrote {OUT}")
+    print(f"     figures dir: {FIGURES}")
+    print("     drop PNGs into report/figures/ and re-run to auto-embed:")
+    print("       - report/figures/databricks_dlt_dag.png")
+    print("       - report/figures/databricks_job_graph.png")
 
 
 if __name__ == "__main__":
