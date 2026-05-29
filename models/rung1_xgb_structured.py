@@ -1,6 +1,5 @@
-"""Rung 1: XGBoost on the 20 STRUCTURED features (10 price + 10 fundamentals).
+#Rung 1: XGBoost on the 20 STRUCTURED features (10 price + 10 fundamentals).
 
-Hyperparameters fixed; same values reused in Rung 2. Lift from Rung 1->2 measures text-feature contribution."""
 from __future__ import annotations
 
 import json

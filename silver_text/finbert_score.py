@@ -1,8 +1,4 @@
-"""Score news + press articles with FinBERT, write to silver.silver_news_scored / silver_press_scored.
-
-FinBERT (yiyanghkust/finbert-tone) returns 3-class probabilities. We persist all three
-(pos_prob, neu_prob, neg_prob) so downstream models can use them directly. The legacy scalar
-score = P(pos) - P(neg) is kept as well for backwards compatibility with prior dashboards."""
+# Score news + press articles with FinBERT, write to silver.
 from __future__ import annotations
 
 import pandas as pd

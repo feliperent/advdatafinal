@@ -1,4 +1,4 @@
-"""Run every ingest module in sequence."""
+# Run every ingest module in sequence.
 from ingest import fetch_prices, fetch_fundamentals, fetch_news, fetch_press, fetch_sec
 
 def main() -> None:

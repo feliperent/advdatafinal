@@ -1,10 +1,5 @@
-"""Rung 2: XGBoost on structured + text + sector-cross features.
+#Rung 2: XGBoost on structured + text + sector-cross features.
 
-Upgraded from the prior version per the Tier-1 / Tier-2 plan: now uses the three
-FinBERT class probabilities (rolling), rolling derivatives, sector-cross features,
-and Rung-2-specific regularisation. Hyperparameters are no longer shared with Rung 1.
-At the end of the walk-forward run a paired Wilcoxon signed-rank test compares fold-AUC
-against Rung 1's predictions."""
 from __future__ import annotations
 
 import json
@@ -23,7 +18,7 @@ from models.walkforward import folds
 
 warnings.filterwarnings("ignore")
 
-# ---- Feature sets ----------------------------------------------------------
+#  Feature sets 
 LEGACY_SENTIMENT = [
     "finbert_news_mean_3d", "finbert_news_mean_30d", "finbert_press_30d",
     "n_news_3d", "n_8k_30d",
@@ -38,9 +33,8 @@ CROSS_FEATURES = ["sector_int", "senti_x_vol", "senti_x_absret", "newsvol_x_vol"
 
 FULL_FEATURES = STRUCTURED_FEATURES + LEGACY_SENTIMENT + NEW_SENTIMENT + PCA_FEATURES + CROSS_FEATURES
 
-# ---- Hyperparameters -------------------------------------------------------
-# Rung 2 sees 35 features (20 structured + 11 sentiment + 5 PCA + 4 cross). Roughly twice
-# the dimensionality of Rung 1, so regularisation is stronger to compensate.
+# Hyperparameters 
+
 HP_RUNG2 = dict(
     n_estimators=300,
     max_depth=4,                # shallower trees: fewer noisy splits

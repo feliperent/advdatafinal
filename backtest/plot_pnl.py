@@ -1,16 +1,4 @@
-"""Generate BI charts for the final reporting pipeline.
-
-Saves PNG figures into backtest/figures/ using matplotlib so the report can
-embed them as static images. The Streamlit app produces its own interactive
-Plotly versions of the same data.
-
-Five charts:
-  1. cumulative compound return per rung vs equal-weighted benchmark
-  2. latest top-5 long picks per rung (bar chart of prob_up by symbol)
-  3. per-sector average prob_up for the latest trade date
-  4. distribution of prob_up across the universe for the latest date
-  5. per-fold AUC line chart, Rung 1 vs Rung 2
-"""
+# Generate BI charts for the final reporting pipeline.
 from __future__ import annotations
 
 from pathlib import Path
@@ -38,14 +26,12 @@ plt.rcParams.update({
     "figure.dpi": 130,
 })
 
-
 def _save(name: str) -> Path:
     out = FIG_DIR / f"{name}.png"
     plt.savefig(out, bbox_inches="tight", dpi=160)
     plt.close()
     print(f"  wrote {out.name}")
     return out
-
 
 # 1. cumulative compound return per rung -----------------------------------
 
@@ -80,7 +66,6 @@ def chart_cumulative_return() -> None:
     ax.legend(loc="upper left")
     fig.autofmt_xdate()
     _save("backtest_cumulative_return")
-
 
 # 2. latest top-5 picks per rung -------------------------------------------
 
@@ -122,7 +107,6 @@ def chart_latest_top5() -> None:
     fig.suptitle("Top-5 long picks per rung (latest trade date)", y=1.02)
     _save("latest_top5_picks")
 
-
 # 3. per-sector forecast ----------------------------------------------------
 
 def chart_sector_forecast() -> None:
@@ -161,7 +145,6 @@ def chart_sector_forecast() -> None:
     ax.set_ylim(0, 1)
     ax.axhline(0.5, color="#aaa", linestyle=":")
     _save("sector_forecast")
-
 
 # 4. probability distribution across universe ------------------------------
 
@@ -204,7 +187,6 @@ def chart_probability_distribution() -> None:
     plt.setp(ax.get_xticklabels(), rotation=40, ha="right")
     _save("probability_distribution")
 
-
 # 5. per-fold AUC comparison -----------------------------------------------
 
 def chart_fold_auc() -> None:
@@ -246,7 +228,6 @@ def chart_fold_auc() -> None:
     plt.setp(ax.get_xticklabels(), rotation=35, ha="right")
     _save("fold_auc_per_rung")
 
-
 def main() -> None:
     print(f"[plot_pnl] writing figures to {FIG_DIR}")
     chart_cumulative_return()
@@ -254,7 +235,6 @@ def main() -> None:
     chart_sector_forecast()
     chart_probability_distribution()
     chart_fold_auc()
-
 
 if __name__ == "__main__":
     main()

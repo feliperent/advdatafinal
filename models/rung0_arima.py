@@ -1,6 +1,4 @@
-"""Rung 0: per-stock ARIMA on log_ret_1d. Predicts sign of 5-day cumulative log-return.
-
-Honest baseline that uses ONLY past prices. Any lift from Rung 1 measures structured-feature value."""
+# Rung 0: per-stock ARIMA on log_ret_1d.
 from __future__ import annotations
 
 import math

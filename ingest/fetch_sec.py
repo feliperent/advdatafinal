@@ -1,4 +1,4 @@
-"""Pull 10-K Item 1A + 8-K material events from SEC EDGAR via edgartools."""
+# Pull 10-K Item 1A + 8-K material events from SEC EDGAR via edgartools.
 from __future__ import annotations
 
 import os

@@ -1,7 +1,4 @@
-"""Numpy-based cosine retrieval over silver_filings_*_chunked embeddings (bytea-stored).
-
-No pgvector. At ~13k chunks x 384 dims, in-memory dot product takes <30ms.
-Embeddings are L2-normalised so cosine similarity == dot product."""
+# Numpy-based cosine retrieval over silver_filings_*_chunked embeddings (bytea-stored).
 from __future__ import annotations
 
 import struct

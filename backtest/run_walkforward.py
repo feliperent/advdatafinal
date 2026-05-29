@@ -1,7 +1,4 @@
-"""Walk-forward backtest: long top-K by prob_up per rung, hold 5 days, 5bp transaction cost.
-
-Reads gold.fct_predictions + gold.dim_date + silver.silver_prices_cleaned.
-Writes gold.fct_backtest_pnl_daily."""
+# Walk-forward backtest: long top-K by prob_up per rung, hold 5 days, 5bp transaction cost.
 from __future__ import annotations
 
 import pandas as pd

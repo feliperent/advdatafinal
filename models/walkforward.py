@@ -1,7 +1,4 @@
-"""Walk-forward fold generator.
-
-train: 3 years (rolling) - gap: 5 days - test: 1 quarter (advancing).
-Folds are deterministic given the (start, end) range."""
+# Walk-forward fold generator.
 from __future__ import annotations
 
 from dataclasses import dataclass

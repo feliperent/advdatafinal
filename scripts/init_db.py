@@ -1,4 +1,4 @@
-"""Idempotent DB bootstrap: create advdatafinal database + schemas + pgvector extension."""
+# Idempotent DB bootstrap: create advdatafinal database + schemas + pgvector extension.
 import os
 import sys
 from pathlib import Path

@@ -1,6 +1,4 @@
-"""advdatafinal demo app: 5 blocks per the design.
-
-Run: streamlit run streamlit_app/app.py"""
+# advdatafinal demo app: 5 blocks per the design.
 from __future__ import annotations
 
 import json
@@ -73,7 +71,6 @@ def load_pnl() -> pd.DataFrame:
             """,
             conn,
         )
-
 
 st.title("Final Project Advanced Data Processing by FR, DP, MA and NA ")
 st.caption("Direction prediction + RAG over SEC filings on 20 US stocks.")
@@ -175,7 +172,6 @@ else:
         fig.add_scatter(x=bench["trade_date"], y=bench["benchmark"], name="Equal-weight 20-stock", mode="lines", line=dict(dash="dot"))
     fig.update_layout(template="plotly_white", height=500, xaxis_title="Date", yaxis_title="Cumulative net return")
     st.plotly_chart(fig, use_container_width=True)
-
 
 # Block 6: BI dashboard ---------------------------------------------------
 st.subheader("Block 6 | BI dashboard")

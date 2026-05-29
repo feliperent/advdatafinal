@@ -1,4 +1,4 @@
-"""Pull news articles for the universe from FMP /stock_news (v3)."""
+# Pull news articles for the universe from FMP /stock_news (v3).
 from __future__ import annotations
 
 import json

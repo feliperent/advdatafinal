@@ -1,4 +1,4 @@
-"""Pull press releases for the universe from FMP /press-releases (v4)."""
+# Pull press releases for the universe from FMP /press-releases (v4).
 from __future__ import annotations
 
 import json

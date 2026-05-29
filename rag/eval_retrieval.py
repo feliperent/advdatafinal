@@ -1,7 +1,4 @@
-"""Evaluate retrieval quality on rag/eval_set.jsonl. Reports MRR@5 and P@5.
-
-A query is 'correct' if the top-K retrieved chunks contain at least one chunk
-whose chunk_key contains the expected_substring (e.g. '10K-AAPL-' for an AAPL-related question)."""
+# Evaluate retrieval quality on rag/eval_set.
 from __future__ import annotations
 
 import json

@@ -1,7 +1,7 @@
-"""Average MiniLM embeddings per company from latest 10-K, fit PCA to top-5, write to gold.
+#Average MiniLM embeddings per company from latest 10-K, fit PCA to top-5, write to gold.
 
-Uses bytea-stored embeddings (the local pragmatic deviation from pgvector). Each chunk's
-embedding is a packed float32 vector that we unpack with struct.unpack."""
+#Uses bytea-stored embeddings (the local pragmatic deviation from pgvector). Each chunk's
+#embedding is a packed float32 vector that we unpack with struct.unpack.
 from __future__ import annotations
 
 import hashlib

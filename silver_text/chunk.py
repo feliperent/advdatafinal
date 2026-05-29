@@ -1,4 +1,4 @@
-"""Deterministic 500-token chunker with 50-token overlap. Uses tiktoken for accurate token counting."""
+# Deterministic 500-token chunker with 50-token overlap.
 from __future__ import annotations
 
 import tiktoken

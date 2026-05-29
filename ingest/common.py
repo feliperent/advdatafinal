@@ -1,4 +1,4 @@
-"""Shared helpers: env loading, Postgres connection, ingest_log writer, sha256, universe loader."""
+# Shared helpers: env loading, Postgres connection, ingest_log writer, sha256, universe loader.
 from __future__ import annotations
 
 import hashlib

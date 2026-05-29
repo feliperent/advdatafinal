@@ -1,4 +1,4 @@
-"""Smoke tests for ingest.common."""
+# Smoke tests for ingest.
 from pathlib import Path
 
 from ingest.common import all_tickers, load_universe, sector_for, sha256_of_file

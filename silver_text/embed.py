@@ -1,4 +1,4 @@
-"""sentence-transformers/all-MiniLM-L6-v2 embedding wrapper. 384-dim, L2-normalised."""
+# sentence-transformers/all-MiniLM-L6-v2 embedding wrapper.
 from __future__ import annotations
 
 import numpy as np

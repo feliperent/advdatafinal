@@ -1,7 +1,4 @@
-"""Chunk + embed every 10-K and 8-K filing, write to silver chunked tables + gold embedding store.
-
-Storage choice: numpy bytes in bytea column (not pgvector), retrieval done in Python via cosine.
-At 5k chunks x 384 dims, in-memory cosine takes <50ms."""
+# Chunk + embed every 10-K and 8-K filing, write to silver chunked tables + gold embedding store.
 from __future__ import annotations
 
 import hashlib

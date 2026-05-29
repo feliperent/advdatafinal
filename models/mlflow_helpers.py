@@ -1,4 +1,4 @@
-"""MLflow helpers: experiment setup + run context manager."""
+# MLflow helpers: experiment setup + run context manager.
 from __future__ import annotations
 
 import os

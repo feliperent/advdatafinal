@@ -1,4 +1,4 @@
-"""Pull income statement, balance sheet, cash flow from FMP into 3 raw tables."""
+# Pull income statement, balance sheet, cash flow from FMP into 3 raw tables.
 from __future__ import annotations
 
 import json

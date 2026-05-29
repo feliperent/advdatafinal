@@ -1,4 +1,4 @@
-"""Pull daily OHLCV for the 20-ticker universe via yfinance."""
+# Pull daily OHLCV for the 20-ticker universe via yfinance.
 from __future__ import annotations
 
 import pandas as pd

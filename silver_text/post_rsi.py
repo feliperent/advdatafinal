@@ -1,7 +1,4 @@
-"""Compute RSI-14 via Wilder smoothing in Pandas and write back into silver.silver_prices_cleaned.rsi_14.
-
-This runs as a post-hook to dbt because Wilder smoothing is recursive and awkward in pure SQL.
-Idempotent: safe to re-run."""
+# Compute RSI-14 via Wilder smoothing in Pandas and write back into silver.
 from __future__ import annotations
 
 import pandas as pd
