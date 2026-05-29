@@ -74,12 +74,24 @@ joined AS (
              THEN ff.ebitda_ttm / NULLIF(ff.total_assets - ff.cash + ff.total_debt, 0) END                  AS ebitda_to_ev_proxy,
         CASE WHEN ff.free_cash_flow_ttm IS NOT NULL AND ff.total_assets > 0
              THEN ff.free_cash_flow_ttm / ff.total_assets END                                               AS fcf_to_assets,
-        -- 5 SENTIMENT features
+        -- 5 LEGACY sentiment features (kept so prior Rung 2 still resolves).
         COALESCE(s.finbert_news_mean_3d,  0::numeric) AS finbert_news_mean_3d,
         COALESCE(s.finbert_news_mean_30d, 0::numeric) AS finbert_news_mean_30d,
         COALESCE(s.finbert_press_30d,     0::numeric) AS finbert_press_30d,
         COALESCE(s.n_news_3d, 0)                       AS n_news_3d,
         COALESCE(s.n_8k_30d, 0)                        AS n_8k_30d,
+        -- 6 NEW per-class probability + derivative features for the upgraded Rung 2.
+        COALESCE(s.finbert_news_pos_3d,    0::numeric) AS finbert_news_pos_3d,
+        COALESCE(s.finbert_news_neg_3d,    0::numeric) AS finbert_news_neg_3d,
+        COALESCE(s.finbert_news_pos_30d,   0::numeric) AS finbert_news_pos_30d,
+        COALESCE(s.finbert_news_neg_30d,   0::numeric) AS finbert_news_neg_30d,
+        COALESCE(s.news_mean_change_5d,    0::numeric) AS news_mean_change_5d,
+        COALESCE(s.news_disp_3d,           0::numeric) AS news_disp_3d,
+        -- Sector cross-features (sector_key as integer hash for tree models).
+        ('x' || substring(c.sector_key, 1, 8))::bit(32)::int AS sector_int,
+        (p.vol_20d * COALESCE(s.finbert_news_mean_3d, 0::numeric))   AS senti_x_vol,
+        (ABS(p.log_ret_1d) * COALESCE(s.finbert_news_mean_3d, 0::numeric)) AS senti_x_absret,
+        (COALESCE(s.n_news_3d, 0) * p.vol_20d)                       AS newsvol_x_vol,
         -- 5 PCA-EMBEDDING features (may be NULL until Phase 3b runs)
         COALESCE(e.filing_pc1, 0::numeric) AS filing_pc1,
         COALESCE(e.filing_pc2, 0::numeric) AS filing_pc2,

@@ -1,4 +1,4 @@
-.PHONY: help init ingest build train backtest rag demo all clean docs gate
+.PHONY: help init ingest build train backtest rag demo all clean docs gate rebuild-rung2
 
 PY := /opt/anaconda3/bin/python3
 
@@ -49,3 +49,10 @@ clean:
 	rm -rf bronze/ mlruns/ dbt/target/ dbt/logs/
 
 all: ingest build train backtest rag
+
+rebuild-rung2:
+	$(PY) -m silver_text.finbert_score
+	cd dbt && dbt run --select fct_sentiment_per_day fct_feature_panel_daily
+	$(PY) -m models.rung2_xgb_with_text
+	$(PY) -m backtest.run_walkforward
+	$(PY) -m backtest.plot_pnl

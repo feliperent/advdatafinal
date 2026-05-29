@@ -176,8 +176,91 @@ else:
     fig.update_layout(template="plotly_white", height=500, xaxis_title="Date", yaxis_title="Cumulative net return")
     st.plotly_chart(fig, use_container_width=True)
 
+
+# Block 6: BI dashboard ---------------------------------------------------
+st.subheader("Block 6 | BI dashboard")
+
+@st.cache_data(ttl=60)
+def _latest_predictions_full() -> pd.DataFrame:
+    with pg_conn() as conn:
+        return pd.read_sql(
+            """
+            WITH latest AS (
+              SELECT MAX(d.full_date) AS latest_date
+              FROM gold.fct_predictions p
+              JOIN gold.dim_date d ON d.date_key = p.date_key
+              WHERE p.model_rung = 2
+            )
+            SELECT c.symbol, c.sector_name, p.model_rung, p.prob_up::float AS prob_up
+            FROM gold.fct_predictions p
+            JOIN gold.dim_date d   ON d.date_key   = p.date_key
+            JOIN gold.dim_company c ON c.company_key = p.company_key
+            JOIN latest l          ON l.latest_date = d.full_date
+            """,
+            conn,
+        )
+
+bi_df = _latest_predictions_full()
+if bi_df.empty:
+    st.info("No predictions yet. Run `make train` then `make backtest` first.")
+else:
+    col_l, col_r = st.columns(2)
+
+    # Top-5 picks per rung.
+    with col_l:
+        st.markdown("**Top-5 long picks per rung (latest date)**")
+        for rung in sorted(bi_df["model_rung"].unique()):
+            sub = bi_df[bi_df["model_rung"] == rung].nlargest(5, "prob_up").sort_values("prob_up")
+            f = go.Figure(go.Bar(
+                x=sub["prob_up"], y=sub["symbol"], orientation="h",
+                marker=dict(color="#d62728" if rung == 2 else "#1f77b4"),
+                text=[f"{p:.3f}" for p in sub["prob_up"]],
+                textposition="auto",
+            ))
+            f.update_layout(
+                title=f"Rung {int(rung)}", height=260, margin=dict(l=10, r=10, t=40, b=20),
+                xaxis_title="prob_up", template="plotly_white",
+            )
+            st.plotly_chart(f, use_container_width=True)
+
+    # Sector forecast.
+    with col_r:
+        st.markdown("**Mean Rung 2 prob_up by sector (latest date)**")
+        sect = (bi_df[bi_df["model_rung"] == 2]
+                .groupby("sector_name")["prob_up"]
+                .mean().sort_values(ascending=False).reset_index())
+        f = go.Figure(go.Bar(
+            x=sect["sector_name"], y=sect["prob_up"],
+            text=[f"{p:.3f}" for p in sect["prob_up"]], textposition="auto",
+            marker=dict(color="#d62728"),
+        ))
+        f.update_layout(
+            yaxis=dict(range=[0, 1]), height=300, template="plotly_white",
+            xaxis_title="Sector", yaxis_title="Mean prob_up",
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        st.plotly_chart(f, use_container_width=True)
+
+        st.markdown("**Probability distribution across all 20 symbols (Rung 2)**")
+        dist = (bi_df[bi_df["model_rung"] == 2]
+                .sort_values("prob_up", ascending=False).reset_index(drop=True))
+        cutoff = float(dist["prob_up"].iloc[min(4, len(dist) - 1)])
+        f = go.Figure(go.Bar(
+            x=dist["symbol"], y=dist["prob_up"],
+            marker=dict(color=["#d62728" if p >= cutoff else "#cccccc" for p in dist["prob_up"]]),
+            text=[f"{p:.2f}" for p in dist["prob_up"]], textposition="outside",
+        ))
+        f.add_hline(y=cutoff, line=dict(color="#1f77b4", dash="dash"),
+                    annotation_text=f"top-5 cutoff = {cutoff:.3f}", annotation_position="top right")
+        f.update_layout(
+            yaxis=dict(range=[0, 1]), height=320, template="plotly_white",
+            xaxis_title="Symbol", yaxis_title="prob_up",
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        st.plotly_chart(f, use_container_width=True)
+
 st.caption(
-    "Data: 20 US stocks, 5 sectors, 2021-01 → 2025-12. "
+    "Data: 20 US stocks, 5 sectors, 2021-01 -> 2025-12. "
     "Schemas: raw, datos_masked, silver, gold. "
     "Vector store: numpy cosine over bytea-stored 384-dim MiniLM embeddings."
 )

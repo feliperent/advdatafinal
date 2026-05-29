@@ -38,30 +38,37 @@ def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
 REBALANCE_EVERY = 5  # trading days
 
 def compute_pnl(preds: pd.DataFrame, ret: pd.DataFrame) -> pd.DataFrame:
-    """Pick top-K every 5 trading days (no daily overlap); 5-day forward return per rebalance.
+    """Pick top-K every 5 trading days (no daily overlap); 5-day forward simple return.
 
-    Critical: rebalancing every 5 days while measuring 5-day forward return avoids the daily-overlap
-    bug that would multiply realised returns ~5x (because each 5-day return would be counted 5 times)."""
+    Transaction cost is turnover-based: 5 basis points charged on the fraction of the basket
+    that turns over since the previous rebalance, so a no-change rebalance pays zero cost.
+    Cumulative return is properly compounded with cumprod(1 + r) - 1, not summed."""
     out_rows: list[tuple] = []
     for rung, rung_group in preds.groupby("model_rung"):
-        # Sort unique trade dates within this rung and pick every 5th as a rebalance day
         unique_dates = sorted(rung_group["trade_date"].unique())
         rebalance_dates = unique_dates[::REBALANCE_EVERY]
+        prev_basket: set[str] = set()
         for trade_date in rebalance_dates:
             day_group = rung_group[rung_group["trade_date"] == trade_date]
             top = day_group.nlargest(TOP_K, "prob_up")
+            basket = set(top["company_key"])
             merged = top.merge(ret, on=["company_key", "trade_date"], how="left")
             if merged["fwd_ret_5d"].isna().all():
                 continue
             gross = float(merged["fwd_ret_5d"].dropna().mean())
             n_long = int(len(merged["fwd_ret_5d"].dropna()))
-            cost = TX_COST_BPS / 10000.0
+            turnover = len(basket.symmetric_difference(prev_basket)) / max(1, 2 * TOP_K)
+            cost = turnover * (TX_COST_BPS / 10000.0)
             net = gross - cost
             out_rows.append((trade_date, int(rung), n_long, gross, cost, net))
+            prev_basket = basket
 
     df = pd.DataFrame(out_rows, columns=["trade_date", "model_rung", "n_long", "gross_ret", "tx_cost", "net_ret"])
     df = df.sort_values(["model_rung", "trade_date"]).reset_index(drop=True)
-    df["cum_net_ret"] = df.groupby("model_rung")["net_ret"].cumsum()
+    # Properly compounded cumulative return: (1+r_1)(1+r_2)...(1+r_n) - 1.
+    df["cum_net_ret"] = df.groupby("model_rung")["net_ret"].transform(
+        lambda x: (1 + x).cumprod() - 1
+    )
     return df
 
 def benchmark_spy(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
@@ -79,7 +86,8 @@ def benchmark_spy(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
     bench = per_stock.dropna(subset=["ret"]).groupby("trade_date")["ret"].mean().reset_index()
     bench = bench.rename(columns={"ret": "eq_wt_ret"})
     bench = bench[(bench["trade_date"] >= start) & (bench["trade_date"] <= end)].sort_values("trade_date")
-    bench["benchmark_cum"] = bench["eq_wt_ret"].cumsum()
+    # Compounded cumulative return for the equal-weighted benchmark.
+    bench["benchmark_cum"] = (1 + bench["eq_wt_ret"]).cumprod() - 1
     return bench[["trade_date", "benchmark_cum"]]
 
 def write_to_db(pnl: pd.DataFrame, bench: pd.DataFrame) -> None:
