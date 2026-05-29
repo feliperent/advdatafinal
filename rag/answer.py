@@ -63,7 +63,7 @@ def _fetch_prediction_context(symbol: str, date: str, rung: int = 2) -> dict[str
     return {"prob_up": float(row[0]), "predicted_class": int(row[1]), "shap_json": row[2]}
 
 def _template_fallback(question: str, symbol: str, as_of_date: str, ctx: dict, chunks) -> str:
-    """Template summary used when the LLM API is unavailable. Cites the top-3 chunks verbatim."""
+    # Template summary used when the LLM API is unavailable.
     direction = "UP" if ctx["predicted_class"] else "DOWN"
     top3 = chunks.head(3)
     cites = ", ".join(f"[{r.chunk_key}]" for _, r in top3.iterrows())
@@ -88,7 +88,7 @@ def answer(
     rung: int = 2,
     top_k: int = 8,
 ) -> tuple[str, list[str], dict[str, Any]]:
-    """Return (paragraph, citation_keys, usage_dict)."""
+    # Return (paragraph, citation_keys, usage_dict).
     ctx = _fetch_prediction_context(symbol, as_of_date, rung=rung)
     ctx["rung"] = rung
     chunks = retrieve(question, symbol=symbol, as_of_date_max=as_of_date, top_k=top_k)

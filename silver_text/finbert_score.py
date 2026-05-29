@@ -18,11 +18,7 @@ def load_model():
 
 @torch.no_grad()
 def score_text(text: str, tok, model) -> tuple[float, float, float]:
-    """Return the three FinBERT-tone class probabilities (neu, pos, neg).
-
-    Empirical label order from m.config.id2label is {0: Neutral, 1: Positive, 2: Negative}.
-    Returning a triple lets downstream code keep the scalar via pos - neg if it wants it,
-    while also exposing the raw probabilities for richer features."""
+    # Return the three FinBERT-tone class probabilities (neu, pos, neg).
     if not text or not str(text).strip():
         return 1.0, 0.0, 0.0  # treat empty text as fully neutral
     enc = tok(str(text), return_tensors="pt", truncation=True, max_length=512)

@@ -14,7 +14,7 @@ def get_model() -> SentenceTransformer:
     return _model
 
 def embed(texts: list[str], show_progress: bool = True) -> np.ndarray:
-    """Return (n, 384) L2-normalised embeddings."""
+    # Return (n, 384) L2-normalised embeddings.
     if not texts:
         return np.zeros((0, 384), dtype=np.float32)
     return get_model().encode(texts, normalize_embeddings=True, show_progress_bar=show_progress)

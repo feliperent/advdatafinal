@@ -35,10 +35,9 @@ def init_schemas() -> None:
     cur = conn.cursor()
     for schema in ("raw", "datos_masked", "silver", "gold"):
         cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
-    # NOTE: pgvector intentionally NOT used locally; this Postgres install (EDB 18)
-    # requires a build-from-source + sudo to add the vector extension. The project
-    # stores embeddings as bytea + numpy cosine retrieval in Python instead.
-    # See docs/IMPLEMENTATION_PLAN.md "vector store decision" for the rationale.
+    # pgvector intentionally NOT used: this Postgres install (EDB 18) needs a
+    # build-from-source + sudo for the vector extension. Embeddings are stored
+    # as bytea and retrieved via numpy cosine in Python instead.
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS raw.ingest_log (

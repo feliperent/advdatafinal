@@ -20,7 +20,7 @@ ENDPOINT_TABLE = {
 }
 
 def fetch_one(symbol: str, endpoint: str) -> list[dict]:
-    """FMP /stable endpoint: symbol passed as query param, not path segment."""
+    # FMP /stable endpoint: symbol passed as query param, not path segment.
     url = f"{FMP_BASE}/{endpoint}"
     r = requests.get(
         url,
@@ -31,7 +31,7 @@ def fetch_one(symbol: str, endpoint: str) -> list[dict]:
     return r.json()
 
 def _sanitize(k: str) -> str:
-    """Postgres column names: lowercase, replace non-alphanumerics with underscore."""
+    # Postgres column names: lowercase, replace non-alphanumerics with underscore.
     out = []
     for ch in k:
         if ch.isalnum() or ch == "_":

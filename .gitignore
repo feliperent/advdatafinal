@@ -36,3 +36,4 @@ scripts/build_report_docx.py
 
 # Python build artefacts
 *.egg-info/
+dbt/.user.yml

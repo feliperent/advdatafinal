@@ -17,7 +17,7 @@ from models.walkforward import folds
 warnings.filterwarnings("ignore")
 
 def predict_5d_direction(log_returns: pd.Series) -> tuple[float, int]:
-    """Fit ARIMA on log_returns, predict next 5 daily log-returns, sum, return (prob_up, class)."""
+    # Fit ARIMA on log_returns, predict next 5 daily log-returns, sum, return (prob_up, class).
     series = pd.Series(log_returns).dropna()
     if len(series) < 60:
         return 0.5, 0
@@ -83,7 +83,7 @@ def write_predictions(rows: list[tuple]) -> None:
         )
 
 def main(max_test_per_stock_per_fold: int = 20) -> None:
-    """Fit per stock per fold. To keep wall time reasonable we sample up to N test rows per (stock, fold)."""
+    # Fit per stock per fold.
     df = load_panel()
     print(f"Loaded {len(df)} panel rows for {df['symbol'].nunique()} stocks")
 

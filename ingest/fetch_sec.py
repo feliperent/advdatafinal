@@ -15,7 +15,7 @@ def init_sec() -> None:
     set_identity(ua)
 
 def fetch_10k_item1a(symbol: str, years: int = 5) -> list[dict]:
-    """Pull the last `years` 10-Ks and extract the Item 1A Risk Factors text via tenk.risk_factors."""
+    # Pull the last `years` 10-Ks and extract the Item 1A Risk Factors text via tenk.
     c = Company(symbol)
     filings = list(c.get_filings(form="10-K").head(years))
     out = []

@@ -25,7 +25,7 @@ def pg_conn(dbname: str = "advdatafinal") -> psycopg2.extensions.connection:
     )
 
 def sha256_of_file(path: Path) -> str:
-    """Hash a single file. If `path` is a directory, hash a manifest of (filename, size) tuples."""
+    # Hash a single file.
     p = Path(path)
     h = hashlib.sha256()
     if p.is_dir():
@@ -45,7 +45,7 @@ def log_ingest(
     file_path: Path,
     row_count: int,
 ) -> None:
-    """Idempotent upsert into raw.ingest_log."""
+    # Idempotent upsert into raw.
     sha = sha256_of_file(file_path) if Path(file_path).exists() else "0" * 64
     with pg_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -63,7 +63,7 @@ def log_ingest(
         )
 
 def load_universe() -> dict[str, list[str]]:
-    """Return {sector_name: [ticker, ...]} from config/universe.yaml."""
+    # Return {sector_name: [ticker, .
     cfg = yaml.safe_load(open(REPO_ROOT / "config" / "universe.yaml"))
     return cfg["universe"]["tickers"]
 

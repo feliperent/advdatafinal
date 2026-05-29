@@ -15,7 +15,7 @@ from silver_text.embed import embed
 EMBED_DIM = 384
 
 def _to_bytes(vec: np.ndarray) -> bytes:
-    """Pack a float32 vector as little-endian bytes."""
+    # Pack a float32 vector as little-endian bytes.
     v = vec.astype(np.float32, copy=False)
     return struct.pack(f"<{len(v)}f", *v.tolist())
 

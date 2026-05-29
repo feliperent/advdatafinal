@@ -35,11 +35,7 @@ def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
 REBALANCE_EVERY = 5  # trading days
 
 def compute_pnl(preds: pd.DataFrame, ret: pd.DataFrame) -> pd.DataFrame:
-    """Pick top-K every 5 trading days (no daily overlap); 5-day forward simple return.
-
-    Transaction cost is turnover-based: 5 basis points charged on the fraction of the basket
-    that turns over since the previous rebalance, so a no-change rebalance pays zero cost.
-    Cumulative return is properly compounded with cumprod(1 + r) - 1, not summed."""
+    # Pick top-K every 5 trading days (no daily overlap); 5-day forward simple return.
     out_rows: list[tuple] = []
     for rung, rung_group in preds.groupby("model_rung"):
         unique_dates = sorted(rung_group["trade_date"].unique())
@@ -69,7 +65,7 @@ def compute_pnl(preds: pd.DataFrame, ret: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def benchmark_spy(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    """Equal-weight buy-and-hold across the 20-stock universe as a proxy for the cross-section."""
+    # Equal-weight buy-and-hold across the 20-stock universe as a proxy for the cross-section.
     with pg_conn() as conn:
         per_stock = pd.read_sql(
             """

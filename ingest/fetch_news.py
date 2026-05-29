@@ -14,7 +14,7 @@ FMP_BASE = "https://financialmodelingprep.com/stable"
 FMP_KEY = os.getenv("FMP_API_KEY")
 
 def fetch_one(symbol: str, limit: int = 200) -> list[dict]:
-    """FMP /stable/news/stock: symbols (plural) as query param."""
+    # FMP /stable/news/stock: symbols (plural) as query param.
     url = f"{FMP_BASE}/news/stock"
     r = requests.get(
         url,

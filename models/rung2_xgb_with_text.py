@@ -68,7 +68,7 @@ def load_panel_full() -> pd.DataFrame:
 
 
 def train_fold(df: pd.DataFrame, fold, features: list[str]) -> tuple[float, float, list[tuple]]:
-    """Train Rung 2 on a single fold; return (auc, acc, prediction rows)."""
+    # Train Rung 2 on a single fold; return (auc, acc, prediction rows).
     train = df[(df["trade_date"] >= fold.train_start) & (df["trade_date"] <= fold.train_end)]
     test = df[(df["trade_date"] >= fold.test_start) & (df["trade_date"] <= fold.test_end)]
     if test.empty or train.empty:
@@ -142,7 +142,7 @@ def persist_predictions(rows: list[tuple]) -> None:
 
 
 def paired_wilcoxon_vs_rung1(rung2_aucs: dict[str, float]) -> None:
-    """Compare per-fold AUC of Rung 2 against the latest Rung 1 predictions in Postgres."""
+    # Compare per-fold AUC of Rung 2 against the latest Rung 1 predictions in Postgres.
     if not rung2_aucs:
         return
     with pg_conn() as conn:

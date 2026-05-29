@@ -18,8 +18,7 @@ def _from_bytes(b: bytes) -> np.ndarray:
 
 @lru_cache(maxsize=1)
 def load_corpus() -> tuple[pd.DataFrame, np.ndarray]:
-    """Load all chunks (10-K + 8-K) plus their embeddings as one (n, 384) numpy matrix.
-    Cached for the lifetime of the process; ~10MB."""
+    # Load all chunks (10-K + 8-K) plus their embeddings as one (n, 384) numpy matrix.
     with pg_conn() as conn:
         df = pd.read_sql(
             """
@@ -46,7 +45,7 @@ def retrieve(
     top_k: int = 8,
     source_types: tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
-    """Return top-K chunks ranked by cosine similarity, filtered by symbol / as_of_date / source_type."""
+    # Return top-K chunks ranked by cosine similarity, filtered by symbol / as_of_date / source_type.
     df, mat = load_corpus()
 
     mask = np.ones(len(df), dtype=bool)

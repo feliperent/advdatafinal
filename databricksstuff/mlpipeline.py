@@ -15,7 +15,7 @@ except Exception as e:
     print(f"MLflow experiment setup skipped: {e}")
 
 def _new_rows(source_df, target_table_name, key_cols):
-    """Return rows from source_df not yet present in target_table_name."""
+    # Return rows from source_df not yet present in target_table_name.
     if not spark.catalog.tableExists(target_table_name):
         return source_df
     existing = spark.table(target_table_name).select(*key_cols).distinct()
