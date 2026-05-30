@@ -19,7 +19,7 @@ from rag.answer import answer  # noqa: E402
 
 st.set_page_config(page_title="advdatafinal | IN014", layout="wide")
 
-# ----------------------------- Data loaders (cached) ---------------------------
+# Data loaders (cached)
 
 @st.cache_data(ttl=60)
 def load_companies() -> pd.DataFrame:
