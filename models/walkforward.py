@@ -39,6 +39,23 @@ def folds(
             )
         )
         cursor = cursor + timedelta(days=test_quarter_days)
+    # Partial final fold: if there is still a meaningful test window remaining
+    # before `end`, emit a shorter fold for those days so the pipeline produces
+    # predictions as close to `end` as possible. Requires at least 14 days of
+    # remaining window so the fold is statistically worth scoring.
+    remaining = (end - cursor).days
+    if remaining >= 14:
+        train_end = cursor - timedelta(days=gap_days)
+        train_start = train_end - timedelta(days=365 * train_years)
+        out.append(
+            Fold(
+                fold_id=cursor.isoformat() + "_partial",
+                train_start=train_start,
+                train_end=train_end,
+                test_start=cursor,
+                test_end=end,
+            )
+        )
     return out
 
 if __name__ == "__main__":
