@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: dim_date
-    description: Daily calendar 2021-01-01 to 2025-12-31. is_trading_day flags Mon-Fri.
+    description: Daily calendar 2021-01-01 to 2026-04-30. is_trading_day flags Mon-Fri.
     columns:
       - name: date_key
         tests: [not_null, unique]

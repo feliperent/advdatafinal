@@ -16,11 +16,11 @@ from models.walkforward import folds
 
 warnings.filterwarnings("ignore")
 
-def predict_5d_direction(log_returns: pd.Series) -> tuple[float, int]:
-    # Fit ARIMA on log_returns, predict next 5 daily log-returns, sum, return (prob_up, class).
+def fit_arima(log_returns: pd.Series):
+    # Fit ARIMA on the full training series. Returns (model, sigma_5d) or (None, 0).
     series = pd.Series(log_returns).dropna()
     if len(series) < 60:
-        return 0.5, 0
+        return None, 0.0
     try:
         model = auto_arima(
             series,
@@ -32,10 +32,19 @@ def predict_5d_direction(log_returns: pd.Series) -> tuple[float, int]:
             seasonal=False,
             with_intercept=False,
         )
+        sigma_5d = float(series.tail(60).std()) * math.sqrt(5)
+        return model, sigma_5d
+    except Exception:
+        return None, 0.0
+
+
+def predict_from_fitted(model, sigma_5d: float) -> tuple[float, int]:
+    # Use an already-fitted ARIMA to predict next 5 daily log-returns, sum, return (prob_up, class).
+    if model is None:
+        return 0.5, 0
+    try:
         forecast = model.predict(n_periods=5)
         cum = float(np.sum(forecast))
-        # Normalise by train-period 5-day vol so prob is comparable across stocks
-        sigma_5d = float(series.tail(60).std()) * math.sqrt(5)
         z = cum / max(sigma_5d, 1e-6)
         prob_up = 1.0 / (1.0 + math.exp(-z))
         return prob_up, int(prob_up > 0.5)
@@ -87,6 +96,10 @@ def main(max_test_per_stock_per_fold: int = 20) -> None:
     df = load_panel()
     print(f"Loaded {len(df)} panel rows for {df['symbol'].nunique()} stocks")
 
+    # Idempotent: drop any prior Rung 0 predictions so re-runs do not duplicate.
+    with pg_conn() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM gold.fct_predictions WHERE model_rung = 0")
+
     for fold in folds():
         train = df[(df["trade_date"] >= fold.train_start) & (df["trade_date"] <= fold.train_end)]
         test  = df[(df["trade_date"] >= fold.test_start) & (df["trade_date"] <= fold.test_end)]
@@ -96,14 +109,16 @@ def main(max_test_per_stock_per_fold: int = 20) -> None:
         preds, labels, pred_rows = [], [], []
         for symbol, sub in tqdm(test.groupby("symbol"), desc=f"rung0 {fold.fold_id}", leave=False):
             train_series = train[train["symbol"] == symbol]["log_ret_1d"]
+            # Fit ARIMA ONCE per (stock, fold) on the training window. All test rows in
+            # the same fold use the same fitted model, since the design uses train-only
+            # data (no rolling refit) for this baseline. ~20x faster than per-row refit.
+            model, sigma_5d = fit_arima(train_series)
             test_sub = sub
             if len(test_sub) > max_test_per_stock_per_fold:
-                # Sample evenly across the test window
                 step = max(1, len(test_sub) // max_test_per_stock_per_fold)
                 test_sub = test_sub.iloc[::step].head(max_test_per_stock_per_fold)
             for _, row in test_sub.iterrows():
-                hist = train_series  # ARIMA fit only on train (no leakage)
-                p, c = predict_5d_direction(hist)
+                p, c = predict_from_fitted(model, sigma_5d)
                 preds.append(p)
                 labels.append(int(row["y_5d_up"]))
                 pred_rows.append((str(row["trade_date"]), row["company_key"], 0, fold.fold_id, float(p), int(c)))

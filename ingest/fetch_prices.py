@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from ingest.common import BRONZE_ROOT, all_tickers, log_ingest, pg_conn
 
-def fetch_one(symbol: str, start: str = "2021-01-01", end: str = "2026-01-01") -> pd.DataFrame:
+def fetch_one(symbol: str, start: str = "2021-01-01", end: str = "2026-05-01") -> pd.DataFrame:
     df = yf.download(
         symbol,
         start=start,
@@ -28,7 +28,7 @@ def land_to_bronze(symbol: str, df: pd.DataFrame):
     out = BRONZE_ROOT / "prices" / f"{symbol}.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
-    log_ingest("yfinance_prices", symbol, "2021-2025", out, len(df))
+    log_ingest("yfinance_prices", symbol, "2021-2026-04", out, len(df))
 
 def land_to_raw(symbol: str, df: pd.DataFrame):
     with pg_conn() as conn, conn.cursor() as cur:

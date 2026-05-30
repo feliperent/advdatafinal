@@ -13,7 +13,7 @@ from ingest.common import BRONZE_ROOT, all_tickers, log_ingest, pg_conn
 FMP_BASE = "https://financialmodelingprep.com/stable"
 FMP_KEY = os.getenv("FMP_API_KEY")
 
-def fetch_one(symbol: str, limit: int = 200) -> list[dict]:
+def fetch_one(symbol: str, limit: int = 500) -> list[dict]:
     # FMP /stable/news/stock: symbols (plural) as query param.
     url = f"{FMP_BASE}/news/stock"
     r = requests.get(

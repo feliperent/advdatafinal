@@ -14,7 +14,7 @@ class Fold:
 
 def folds(
     start: date = date(2021, 1, 1),
-    end: date = date(2025, 12, 31),
+    end: date = date(2026, 4, 30),
     train_years: int = 3,
     test_quarter_days: int = 63,
     # 10 calendar days = embargo for the 5-trading-day target (~7 cal days)

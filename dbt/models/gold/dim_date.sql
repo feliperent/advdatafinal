@@ -3,7 +3,7 @@
 -- Mirrors the midterm's gold.dim_date shape (md5 surrogate key, friendly attributes).
 
 WITH dates AS (
-    SELECT generate_series('2021-01-01'::date, '2025-12-31'::date, '1 day')::date AS full_date
+    SELECT generate_series('2021-01-01'::date, '2026-04-30'::date, '1 day')::date AS full_date
 )
 SELECT
     md5(full_date::text)                          AS date_key,

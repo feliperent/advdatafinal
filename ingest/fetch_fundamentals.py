@@ -24,7 +24,7 @@ def fetch_one(symbol: str, endpoint: str) -> list[dict]:
     url = f"{FMP_BASE}/{endpoint}"
     r = requests.get(
         url,
-        params={"apikey": FMP_KEY, "symbol": symbol, "period": "quarter", "limit": 20},
+        params={"apikey": FMP_KEY, "symbol": symbol, "period": "quarter", "limit": 24},
         timeout=30,
     )
     r.raise_for_status()
@@ -51,7 +51,7 @@ def land_one(symbol: str, endpoint: str, payload: list[dict]) -> None:
     out.write_text(json.dumps(payload, indent=2))
 
     if not payload:
-        log_ingest(f"fmp_{endpoint}", symbol, "2021-2025", out, 0)
+        log_ingest(f"fmp_{endpoint}", symbol, "2021-2026-04", out, 0)
         return
 
     raw_keys = list(payload[0].keys())
@@ -91,7 +91,7 @@ def land_one(symbol: str, endpoint: str, payload: list[dict]) -> None:
                 """,
                 tuple(str(row.get(rk)) if row.get(rk) is not None else None for rk in raw_keys),
             )
-    log_ingest(f"fmp_{endpoint}", symbol, "2021-2025", out, len(payload))
+    log_ingest(f"fmp_{endpoint}", symbol, "2021-2026-04", out, len(payload))
 
 def main() -> None:
     for symbol in tqdm(all_tickers(), desc="fundamentals"):
