@@ -228,6 +228,79 @@ def chart_fold_auc() -> None:
     plt.setp(ax.get_xticklabels(), rotation=35, ha="right")
     _save("fold_auc_per_rung")
 
+# 6. heat-map: Rung 1 vs Rung 2 prob_up on the top-10 symbols (latest date) -
+
+def chart_rung_comparison_heatmap(top_n: int = 10) -> None:
+    # Side-by-side prob_up for the two rungs on the top-N symbols by max(R1, R2)
+    # on the latest trade date, with a delta column to surface disagreements.
+    with pg_conn() as conn:
+        df = pd.read_sql(
+            """
+            WITH latest AS (
+                SELECT MAX(d.full_date) AS latest_date
+                FROM gold.fct_predictions p
+                JOIN gold.dim_date d ON d.date_key = p.date_key
+                WHERE p.model_rung IN (1, 2)
+            )
+            SELECT c.symbol,
+                   p.model_rung,
+                   p.prob_up::float AS prob_up
+            FROM gold.fct_predictions p
+            JOIN gold.dim_date d ON d.date_key = p.date_key
+            JOIN gold.dim_company c ON c.company_key = p.company_key
+            JOIN latest l ON l.latest_date = d.full_date
+            WHERE p.model_rung IN (1, 2)
+            ORDER BY c.symbol, p.model_rung
+            """,
+            conn,
+        )
+    if df.empty:
+        print("  [skip] rung_comparison_heatmap: no predictions")
+        return
+    wide = df.pivot_table(index="symbol", columns="model_rung", values="prob_up").rename(
+        columns={1: "Rung 1", 2: "Rung 2"}
+    )
+    wide["delta"] = wide["Rung 2"] - wide["Rung 1"]
+    wide["max"] = wide[["Rung 1", "Rung 2"]].max(axis=1)
+    wide = wide.sort_values("max", ascending=False).head(top_n).drop(columns="max")
+
+    import numpy as np
+    fig, axes = plt.subplots(1, 2, figsize=(8.5, 0.45 * len(wide) + 1.5),
+                             gridspec_kw={"width_ratios": [2, 1.1]}, sharey=True)
+
+    # Left panel: prob_up for each rung (sequential blue scale, 0..1)
+    prob_mat = wide[["Rung 1", "Rung 2"]].values
+    im0 = axes[0].imshow(prob_mat, aspect="auto", cmap="Blues", vmin=0.30, vmax=0.70)
+    axes[0].set_xticks(range(2))
+    axes[0].set_xticklabels(["Rung 1", "Rung 2"], fontsize=10)
+    axes[0].set_yticks(range(len(wide)))
+    axes[0].set_yticklabels(wide.index, fontsize=10)
+    axes[0].set_title(f"prob_up per rung (top {top_n} by max prob)", fontsize=11)
+    for i in range(len(wide)):
+        for j in range(2):
+            v = prob_mat[i, j]
+            txt_color = "white" if v > 0.55 else "black"
+            axes[0].text(j, i, f"{v:.3f}", ha="center", va="center", fontsize=9, color=txt_color)
+    fig.colorbar(im0, ax=axes[0], shrink=0.7, pad=0.02, label="prob_up")
+
+    # Right panel: delta (R2 - R1) with diverging red/white/blue
+    delta_mat = wide[["delta"]].values
+    vmax = max(0.10, float(np.max(np.abs(delta_mat))))
+    im1 = axes[1].imshow(delta_mat, aspect="auto", cmap="RdBu", vmin=-vmax, vmax=vmax)
+    axes[1].set_xticks([0])
+    axes[1].set_xticklabels(["R2 - R1"], fontsize=10)
+    axes[1].set_yticks([])
+    axes[1].set_title("delta\n(blue: R2 higher\nred: R1 higher)", fontsize=10)
+    for i in range(len(wide)):
+        v = delta_mat[i, 0]
+        txt_color = "white" if abs(v) > 0.6 * vmax else "black"
+        axes[1].text(0, i, f"{v:+.3f}", ha="center", va="center", fontsize=9, color=txt_color)
+    fig.colorbar(im1, ax=axes[1], shrink=0.7, pad=0.02, label="delta")
+
+    fig.suptitle(f"Rung 1 vs Rung 2 prob_up - top {top_n} symbols on latest trade date", y=1.0, fontsize=12)
+    _save("rung_comparison_heatmap")
+
+
 def main() -> None:
     print(f"[plot_pnl] writing figures to {FIG_DIR}")
     chart_cumulative_return()
@@ -235,6 +308,7 @@ def main() -> None:
     chart_sector_forecast()
     chart_probability_distribution()
     chart_fold_auc()
+    chart_rung_comparison_heatmap(top_n=10)
 
 if __name__ == "__main__":
     main()
