@@ -2,6 +2,12 @@
 
 PY := /opt/anaconda3/bin/python3
 
+# Export .env into sub-make environment so dbt resolves env_var() lookups.
+ifneq (,$(wildcard .env))
+    include .env
+    export
+endif
+
 help:
 	@echo "advdatafinal targets:"
 	@echo "  init       create Postgres DB + 4 medallion schemas + ingest_log"
