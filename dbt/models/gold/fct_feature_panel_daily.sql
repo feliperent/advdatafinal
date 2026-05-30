@@ -87,8 +87,15 @@ joined AS (
         COALESCE(s.finbert_news_neg_30d,   0::numeric) AS finbert_news_neg_30d,
         COALESCE(s.news_mean_change_5d,    0::numeric) AS news_mean_change_5d,
         COALESCE(s.news_disp_3d,           0::numeric) AS news_disp_3d,
-        -- Sector cross-features (sector_key as integer hash for tree models).
-        ('x' || substring(c.sector_key, 1, 8))::bit(32)::int AS sector_int,
+        -- Sector one-hot dummies (5 binary columns the tree model can split on).
+        -- Replaces the earlier sector_int hash approach (XGBoost range-splits on a hash
+        -- buy-bucket would never recover the sector grouping).
+        CASE WHEN c.sector_name = 'Technology'   THEN 1 ELSE 0 END AS is_tech,
+        CASE WHEN c.sector_name = 'Financials'   THEN 1 ELSE 0 END AS is_financials,
+        CASE WHEN c.sector_name = 'Healthcare'   THEN 1 ELSE 0 END AS is_healthcare,
+        CASE WHEN c.sector_name = 'Industrials'  THEN 1 ELSE 0 END AS is_industrials,
+        CASE WHEN c.sector_name = 'Consumer'     THEN 1 ELSE 0 END AS is_consumer,
+        -- Sentiment-x-price cross features (interactions XGBoost might otherwise miss at this data size).
         (p.vol_20d * COALESCE(s.finbert_news_mean_3d, 0::numeric))   AS senti_x_vol,
         (ABS(p.log_ret_1d) * COALESCE(s.finbert_news_mean_3d, 0::numeric)) AS senti_x_absret,
         (COALESCE(s.n_news_3d, 0) * p.vol_20d)                       AS newsvol_x_vol,

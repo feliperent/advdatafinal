@@ -122,6 +122,9 @@ def train_and_score(df: pd.DataFrame, fold, rung: int, features: list[str]) -> N
 def main() -> None:
     df = load_panel()
     print(f"Loaded {len(df)} panel rows, {df['symbol'].nunique()} stocks, {len(STRUCTURED_FEATURES)} features")
+    # Idempotent: drop any prior Rung 1 predictions so re-runs do not duplicate rows.
+    with pg_conn() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM gold.fct_predictions WHERE model_rung = 1")
     for fold in folds():
         train_and_score(df, fold, rung=1, features=STRUCTURED_FEATURES)
 

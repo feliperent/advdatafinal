@@ -17,7 +17,10 @@ def folds(
     end: date = date(2025, 12, 31),
     train_years: int = 3,
     test_quarter_days: int = 63,
-    gap_days: int = 5,
+    # 10 calendar days = embargo for the 5-trading-day target (~7 cal days)
+    # with a 3-day safety buffer for holidays. Prevents the last train rows'
+    # y_5d_up targets from touching the first 1-2 test trading days.
+    gap_days: int = 10,
 ) -> list[Fold]:
     out: list[Fold] = []
     cursor = start + timedelta(days=365 * train_years)

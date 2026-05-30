@@ -29,12 +29,22 @@ NEW_SENTIMENT = [
     "news_mean_change_5d", "news_disp_3d",
 ]
 PCA_FEATURES = ["filing_pc1", "filing_pc2", "filing_pc3", "filing_pc4", "filing_pc5"]
-CROSS_FEATURES = ["sector_int", "senti_x_vol", "senti_x_absret", "newsvol_x_vol"]
+SECTOR_DUMMIES = ["is_tech", "is_financials", "is_healthcare", "is_industrials", "is_consumer"]
+CROSS_FEATURES = SECTOR_DUMMIES + ["senti_x_vol", "senti_x_absret", "newsvol_x_vol"]
 
 FULL_FEATURES = STRUCTURED_FEATURES + LEGACY_SENTIMENT + NEW_SENTIMENT + PCA_FEATURES + CROSS_FEATURES
 
-# Hyperparameters 
-
+# Hyperparameters
+#
+# These intentionally diverge from Rung 1 (depth=5, lr=0.05, no reg_alpha, reg_lambda=1.0,
+# colsample=0.8, min_child_weight=5, gamma=0.1). Rung 2 trains on 24 features versus
+# Rung 1's 15, and many of the extra columns (per-class FinBERT probabilities, PCA
+# components, cross-features) carry low signal-to-noise on a 5-day horizon. Sharing
+# Rung 1's hyperparameters would have handicapped Rung 2 by under-regularising it.
+#
+# The harder regularisation (L1 alpha, larger L2 lambda, deeper pruning, smaller trees,
+# slower learning, more aggressive column subsampling) is the standard prescription from
+# Chen and Guestrin (2016) for tree ensembles on wider, noisier feature sets.
 HP_RUNG2 = dict(
     n_estimators=300,
     max_depth=4,                # shallower trees: fewer noisy splits

@@ -4,12 +4,12 @@ PY := /opt/anaconda3/bin/python3
 
 help:
 	@echo "advdatafinal targets:"
-	@echo "  init       create Postgres DB + schemas + pgvector"
+	@echo "  init       create Postgres DB + 4 medallion schemas + ingest_log"
 	@echo "  ingest     pull all six raw sources into raw.*"
 	@echo "  build      dbt run + dbt test (silver + gold)"
 	@echo "  train      walk-forward training of all three rungs"
-	@echo "  backtest   compute P&L per rung + benchmarks"
-	@echo "  rag        build pgvector index + run retrieval eval"
+	@echo "  backtest   compute P&L per rung + BI figures"
+	@echo "  rag        build retrieval index + run retrieval eval"
 	@echo "  demo       launch Streamlit on :8501"
 	@echo "  docs       dbt docs generate + serve"
 	@echo "  gate       lint + pytest + dbt test"
@@ -25,7 +25,9 @@ build:
 	cd dbt && dbt run && dbt test
 
 train:
-	$(PY) -m models.walkforward
+	$(PY) -m models.rung0_arima
+	$(PY) -m models.rung1_xgb_structured
+	$(PY) -m models.rung2_xgb_with_text
 
 backtest:
 	$(PY) -m backtest.run_walkforward
