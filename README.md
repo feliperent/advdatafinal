@@ -1,6 +1,6 @@
 # advdatafinal
 
-IN014 Advanced Data Processing and Analysis final project. Felipe Rentería Zuleta, 2026.
+Advanced Data Processing and Analysis final project.
 
 A medallion data pipeline on 20 US stocks predicting 5-day directional returns, with a RAG layer over SEC filings for explainability.
 
