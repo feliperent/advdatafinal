@@ -1,8 +1,9 @@
-# Pull press releases for the universe from FMP /press-releases (v4).
+# Pull press releases for the universe from FMP /stable/news/press-releases.
 from __future__ import annotations
 
 import json
 import os
+from datetime import date, timedelta
 from time import sleep
 
 import requests
@@ -13,12 +14,20 @@ from ingest.common import BRONZE_ROOT, all_tickers, log_ingest, pg_conn
 FMP_BASE = "https://financialmodelingprep.com/stable"
 FMP_KEY = os.getenv("FMP_API_KEY")
 
-def fetch_one(symbol: str, limit: int = 50) -> list[dict]:
+
+def fetch_one(symbol: str, limit: int = 100, frm: str | None = None, to: str | None = None) -> list[dict]:
     # FMP /stable/news/press-releases: symbols (plural) as query param.
+    # `from` and `to` supported on Premium plan for historical backfill.
     url = f"{FMP_BASE}/news/press-releases"
-    r = requests.get(url, params={"symbols": symbol, "limit": limit, "apikey": FMP_KEY}, timeout=30)
+    params: dict = {"symbols": symbol, "limit": limit, "apikey": FMP_KEY}
+    if frm:
+        params["from"] = frm
+    if to:
+        params["to"] = to
+    r = requests.get(url, params=params, timeout=30)
     r.raise_for_status()
     return r.json()
+
 
 def land(symbol: str, releases: list[dict]) -> None:
     out = BRONZE_ROOT / "press" / f"{symbol}.json"
@@ -57,14 +66,41 @@ def land(symbol: str, releases: list[dict]) -> None:
             )
     log_ingest("fmp_press", symbol, "last_pull", out, len(releases))
 
-def main() -> None:
-    for symbol in tqdm(all_tickers(), desc="press"):
+
+def backfill_range(symbol: str, start: date, end: date, step_days: int = 60) -> int:
+    total = 0
+    cursor = start
+    while cursor < end:
+        nxt = min(cursor + timedelta(days=step_days - 1), end)
         try:
-            releases = fetch_one(symbol)
+            releases = fetch_one(symbol, limit=500, frm=cursor.isoformat(), to=nxt.isoformat())
             land(symbol, releases)
+            total += len(releases)
         except Exception as e:
-            print(f"  {symbol} press failed: {e}")
-        sleep(0.25)
+            print(f"  {symbol} {cursor}->{nxt} failed: {e}")
+        sleep(0.15)
+        cursor = nxt + timedelta(days=1)
+    return total
+
+
+def main() -> None:
+    backfill = os.getenv("BACKFILL", "").lower() in ("1", "true", "yes")
+    if backfill:
+        start = date.fromisoformat(os.getenv("BACKFILL_START", "2021-01-01"))
+        end = date.fromisoformat(os.getenv("BACKFILL_END", date.today().isoformat()))
+        print(f"=== press backfill {start} -> {end} (per-symbol 60-day chunks) ===")
+        for symbol in tqdm(all_tickers(), desc="press backfill"):
+            n = backfill_range(symbol, start, end)
+            print(f"  {symbol}: {n} releases across the window")
+    else:
+        for symbol in tqdm(all_tickers(), desc="press"):
+            try:
+                releases = fetch_one(symbol)
+                land(symbol, releases)
+            except Exception as e:
+                print(f"  {symbol} press failed: {e}")
+            sleep(0.25)
+
 
 if __name__ == "__main__":
     main()
