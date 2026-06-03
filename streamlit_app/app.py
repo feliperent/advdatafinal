@@ -255,33 +255,6 @@ else:
         )
         st.plotly_chart(f, use_container_width=True)
 
-    # Rung 1 vs Rung 2 prob_up heat-map on top-N symbols.
-    st.markdown("**Rung 1 vs Rung 2 prob_up - top 10 symbols on latest date**")
-    pivot = bi_df.pivot_table(index="symbol", columns="model_rung", values="prob_up").rename(
-        columns={1: "Rung 1", 2: "Rung 2"}
-    )
-    pivot["delta"] = pivot["Rung 2"] - pivot["Rung 1"]
-    pivot["max"] = pivot[["Rung 1", "Rung 2"]].max(axis=1)
-    pivot = pivot.sort_values("max", ascending=False).head(10).drop(columns="max")
-    heat = go.Figure(go.Heatmap(
-        z=pivot[["Rung 1", "Rung 2", "delta"]].values,
-        x=["Rung 1", "Rung 2", "R2 - R1"],
-        y=pivot.index,
-        colorscale="RdBu",
-        zmid=0.5,
-        text=[[f"{v:+.3f}" if i == 2 else f"{v:.3f}" for i, v in enumerate(row)]
-              for row in pivot[["Rung 1", "Rung 2", "delta"]].values],
-        texttemplate="%{text}",
-        textfont=dict(size=11),
-        colorbar=dict(title="value"),
-    ))
-    heat.update_layout(
-        height=420, template="plotly_white",
-        margin=dict(l=10, r=10, t=10, b=10),
-        yaxis=dict(autorange="reversed"),
-    )
-    st.plotly_chart(heat, use_container_width=True)
-
 st.caption(
     "Data: 20 US stocks, 5 sectors, 2021-01 -> 2025-12. "
     "Schemas: raw, datos_masked, silver, gold. "
