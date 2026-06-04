@@ -94,23 +94,23 @@ with col_h2:
 stock_row = companies[companies["symbol"] == symbol].iloc[0]
 st.markdown(f"**{symbol}**  -  {stock_row['name']} *({stock_row['sector_name']})*")
 
-# Block 2: predictions side by side
+# Block 2: predictions side by side (Rung 1 and Rung 2 only; Rung 0 ARIMA is sub-sampled and not always available)
 preds = load_predictions(symbol, date_iso)
 st.subheader("Block 2 | Predictions per rung")
 if preds.empty:
     st.info(f"No predictions for {symbol} on {date_iso}.")
 else:
-    cols = st.columns(3)
-    rung_labels = {0: "Rung 0 (ARIMA)", 1: "Rung 1 (XGB structured)", 2: "Rung 2 (XGB + text)"}
-    for r in range(3):
-        with cols[r]:
+    rung_labels = {1: "Rung 1 (XGB structured)", 2: "Rung 2 (XGB + text)"}
+    cols = st.columns(len(rung_labels))
+    for col, r in zip(cols, rung_labels):
+        with col:
             sub = preds[preds["model_rung"] == r]
             if sub.empty:
-                st.metric(rung_labels.get(r, f"Rung {r}"), " - ", "no prediction")
+                st.metric(rung_labels[r], " - ", "no prediction")
                 continue
             p = float(sub.iloc[0]["prob_up"])
             cls = "UP" if int(sub.iloc[0]["predicted_class"]) == 1 else "DOWN"
-            st.metric(rung_labels.get(r, f"Rung {r}"), f"P(up) = {p:.2f}", cls)
+            st.metric(rung_labels[r], f"P(up) = {p:.2f}", cls)
 
 # Block 3: SHAP attribution for Rung 2
 st.subheader("Block 3 | SHAP attributions (Rung 2)")

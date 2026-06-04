@@ -43,7 +43,7 @@ rag:
 	$(PY) -m rag.eval_retrieval
 
 demo:
-	streamlit run streamlit_app/app.py
+	$(PY) -m streamlit run streamlit_app/app.py
 
 docs:
 	cd dbt && dbt docs generate && dbt docs serve
